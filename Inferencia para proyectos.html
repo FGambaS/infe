@@ -1,0 +1,1314 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Inferencia para proyectos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Presentación por vistas: una pantalla a la vez, menú de bloques arriba, avance abajo.
+   Fondo pizarra, cajas antracita, texto gris hielo; celeste para foco, magenta para alertas, lima para lecturas correctas. */
+:root{
+  --bg:#1E222B; --box:#282E3B; --box-2:#313848; --line:#3B4354; --line-2:#4A5468;
+  --text:#CBD5E1; --muted:#94A3B8; --strong:#EEF3F9;
+  --focus:#38BDF8; --focus-soft:rgba(56,189,248,.14);
+  --alert:#F43F5E; --alert-soft:rgba(244,63,94,.14);
+  --ok:#4ADE80; --ok-soft:rgba(74,222,128,.13);
+  --f-display:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;
+  --f-body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:400 19px/1.55 var(--f-body);overflow:hidden}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{font-family:var(--f-display);color:var(--strong);text-wrap:balance;letter-spacing:-.015em;line-height:1.12}
+strong{color:var(--strong)}
+.k{color:var(--alert);font-weight:700}
+.c{color:var(--focus);font-weight:700}
+.g{color:var(--ok);font-weight:700}
+code,.mono{font-family:var(--f-mono)}
+button{font:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:6px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--bg)}
+
+/* Barra superior */
+.top{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:30;height:58px;background:rgba(30,34,43,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.top-in{height:100%;display:flex;align-items:center;gap:18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font:800 1.02rem/1 var(--f-display);color:var(--strong);white-space:nowrap}
+.brand span{color:var(--focus)}
+.blocks{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-left:auto;min-width:0}
+.blocks::-webkit-scrollbar{display:none}
+.blk{appearance:none;border:1px solid transparent;background:transparent;color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;font:600 .82rem/1 var(--f-body);letter-spacing:.02em;transition:color .2s,background .2s,border-color .2s}
+.blk:hover{color:var(--strong)}
+.blk.on{color:var(--bg);background:var(--focus)}
+.progress{position:absolute;left:0;bottom:-1px;height:3px;background:var(--focus);transition:width .5s cubic-bezier(.2,.7,.2,1)}
+
+/* Vistas */
+.stage{position:fixed;left:0;right:0;top:calc(58px + env(safe-area-inset-top,0px));bottom:calc(72px + env(safe-area-inset-bottom,0px));overflow:hidden}
+.view{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding-block:28px 36px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.view[hidden]{display:none!important}
+.view.in{animation:enter .55s cubic-bezier(.2,.7,.2,1) both}
+.view.in.back{animation-name:enterback}
+@keyframes enter{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+@keyframes enterback{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
+.wrap{max-width:1220px;margin:0 auto;display:grid;gap:22px;min-height:100%;align-content:center}
+.eyebrow{font:600 .78rem/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--focus)}
+.vh{display:grid;gap:10px}
+.vh h2{font-size:clamp(1.7rem,3.2vw,2.5rem);font-weight:800}
+.lead{font-size:1.08rem;max-width:72ch}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+.cols.c64{grid-template-columns:minmax(0,6fr) minmax(0,5fr)}
+.cols.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cols.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.prose{display:grid;gap:14px;min-width:0}
+.box{background:var(--box);border-radius:14px;padding:20px 22px;display:grid;gap:10px;align-content:start;min-width:0}
+.box h3{font-size:1.18rem}
+.box.alert{box-shadow:inset 0 0 0 1px var(--alert)}
+.box.ok{box-shadow:inset 0 0 0 1px var(--ok)}
+.box.focus{box-shadow:inset 0 0 0 1px var(--focus)}
+.tag{display:inline-flex;align-items:center;gap:6px;font:600 .72rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:999px;background:var(--box-2);color:var(--muted);width:max-content;max-width:100%}
+.tag.f{background:var(--focus-soft);color:var(--focus)}
+.tag.a{background:var(--alert-soft);color:var(--alert)}
+.tag.o{background:var(--ok-soft);color:var(--ok)}
+.ttl{display:flex;align-items:center;gap:12px}
+.ico{width:30px;height:30px;flex:none;color:var(--focus)}
+.alert .ico{color:var(--alert)} .ok .ico{color:var(--ok)}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.formula{background:var(--box-2);border-radius:12px;padding:16px 20px;font:600 1.12rem/1.6 var(--f-mono);color:var(--strong);overflow-x:auto;display:grid;gap:4px}
+.formula small{font:400 .9rem/1.45 var(--f-body);color:var(--muted)}
+.xl{display:block;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:400 .86rem/1.5 var(--f-mono);color:var(--text);overflow-x:auto;white-space:pre}
+.note{font-size:.88rem;color:var(--muted)}
+.src{font-size:.82rem;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.98rem}
+th,td{padding:10px 14px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{color:var(--strong);border-bottom:2px solid var(--focus)}
+tbody tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;background:var(--box);border-radius:14px}
+.wrapcell td,.wrapcell th{white-space:normal}
+
+/* Animación de entrada de elementos */
+.view.in .rv{animation:rise .7s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 90ms + 120ms)}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+
+/* Pestañas */
+.tabs{display:flex;flex-wrap:wrap;gap:8px}
+.tab{appearance:none;border:1px solid var(--line-2);background:transparent;color:var(--text);padding:10px 18px;border-radius:999px;cursor:pointer;font-weight:600;transition:all .2s}
+.tab:hover{border-color:var(--focus);color:var(--strong)}
+.tab[aria-selected="true"]{background:var(--focus);color:var(--bg);border-color:var(--focus)}
+.panel{animation:fade .45s ease both}
+.panel[hidden]{display:none}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Botones */
+.btn{appearance:none;border:1px solid var(--focus);background:var(--focus-soft);color:var(--strong);padding:10px 18px;border-radius:10px;cursor:pointer;font-weight:600;transition:background .2s}
+.btn:hover{background:rgba(56,189,248,.28)}
+.btn.solid{background:var(--focus);color:var(--bg)}
+.ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.rng{display:grid;gap:6px;min-width:220px;flex:1}
+.rng label{font-size:.92rem;color:var(--muted)}
+.rng label b{color:var(--strong);font-family:var(--f-mono)}
+input[type=range]{width:100%;accent-color:var(--focus)}
+.big{font:800 clamp(2rem,4vw,3rem)/1 var(--f-display);color:var(--strong);font-variant-numeric:tabular-nums}
+.big small{font-size:.4em;color:var(--muted);margin-left:4px}
+.stat{display:grid;gap:4px}
+.stat span{font-size:.86rem;color:var(--muted)}
+
+/* Héroe */
+.hero{grid-template-columns:minmax(0,5fr) minmax(0,6fr);display:grid;gap:36px;align-items:center}
+.hero h1{font-size:clamp(2.4rem,5.4vw,4.4rem);font-weight:800;line-height:1}
+.hero h1 em{font-style:normal;color:var(--focus)}
+.hero .lead{margin-top:18px;font-size:1.2rem}
+.canvasbox{background:var(--box);border-radius:18px;padding:14px;display:grid;gap:10px}
+.canvasbox canvas{width:100%;height:clamp(240px,34vh,360px);display:block;border-radius:10px;background:var(--bg)}
+
+/* Selector de pruebas */
+.selgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.sel{appearance:none;text-align:left;border:1px solid var(--line-2);background:var(--box);color:var(--text);border-radius:12px;padding:12px 14px;cursor:pointer;display:grid;gap:4px;transition:all .2s;min-width:0}
+.sel b{color:var(--strong);font-size:.98rem;line-height:1.25}
+.sel span{font-size:.8rem;color:var(--muted);line-height:1.3}
+.sel:hover{border-color:var(--focus)}
+.sel[aria-selected="true"]{border-color:var(--focus);background:var(--focus-soft)}
+.fichas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.ficha{background:var(--box);border-radius:12px;padding:14px 16px;display:grid;gap:6px;align-content:start;min-width:0}
+.ficha h4{margin:0;font:600 .74rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--focus)}
+.ficha.wide{grid-column:span 2}
+.ficha.full{grid-column:1/-1}
+
+/* Pasos de cálculo */
+.stepper{display:grid;gap:14px}
+.sdots{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sdot{appearance:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line-2);background:transparent;color:var(--muted);cursor:pointer;font:600 .95rem/1 var(--f-mono)}
+.sdot.done{border-color:var(--focus);color:var(--focus)}
+.sdot.on{background:var(--focus);color:var(--bg);border-color:var(--focus)}
+.step{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:20px;animation:fade .45s ease both}
+.step[hidden]{display:none}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 14px;align-items:baseline}
+.kv dt{color:var(--muted);font-size:.9rem}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.kv .m{font-family:var(--f-mono);color:var(--strong)}
+.kv .r{font-family:var(--f-mono);color:var(--ok);font-weight:600;font-size:1.1rem}
+
+/* Gráficos */
+svg text{font-family:var(--f-body)}
+.chart{background:var(--box);border-radius:14px;padding:14px;overflow-x:auto}
+.chart svg{display:block;width:100%;min-width:520px;height:auto}
+.bar-anim{transform-box:fill-box;transform-origin:center;transform:scaleX(0)}
+.view.in .bar-anim{animation:grow 1s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 250ms + 300ms)}
+@keyframes grow{to{transform:scaleX(1)}}
+
+/* Cuadrantes */
+.quad{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.qc{appearance:none;text-align:left;border:1px solid var(--line-2);background:var(--box);color:var(--text);border-radius:12px;padding:16px;cursor:pointer;display:grid;gap:6px;min-width:0}
+.qc[aria-selected="true"]{border-color:var(--focus);background:var(--focus-soft)}
+.qc b{color:var(--strong)}
+
+/* Ciclo */
+.cycle{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;position:relative}
+.phase{background:var(--box);border-radius:16px;padding:20px;display:grid;gap:12px;align-content:start;border-top:4px solid var(--focus);min-width:0}
+.phase ul{margin:0;padding-left:20px;display:grid;gap:8px}
+.phase li::marker{color:var(--focus)}
+
+/* Pie de navegación */
+.pager{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(30,34,43,.96);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.pager-in{height:72px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.pg{appearance:none;display:flex;align-items:center;gap:10px;border:1px solid var(--line-2);background:transparent;color:var(--text);border-radius:12px;padding:8px 14px;cursor:pointer;min-width:0;max-width:38%;text-align:left}
+.pg:hover:not(:disabled){border-color:var(--focus)}
+.pg:disabled{opacity:.3;cursor:default}
+.pg span{display:grid;min-width:0}
+.pg small{font:600 .66rem/1.2 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pg b{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--strong)}
+.pg.next{background:var(--focus);border-color:var(--focus);margin-left:auto;text-align:right}
+.pg.next small{color:rgba(30,34,43,.75)} .pg.next b{color:var(--bg)}
+.pg.next span{justify-items:end}
+.count{font:600 .9rem/1 var(--f-mono);color:var(--muted);white-space:nowrap}
+.count b{color:var(--strong)}
+
+@media (max-width:980px){
+  .cols,.cols.c64,.hero,.step{grid-template-columns:minmax(0,1fr)}
+  .cols.c3,.cols.c4,.trio,.cycle,.fichas{grid-template-columns:minmax(0,1fr)}
+  .ficha.wide{grid-column:auto}
+  .selgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:560px){
+  body{font-size:17px}
+  .selgrid,.quad{grid-template-columns:minmax(0,1fr)}
+  .kv{grid-template-columns:minmax(0,1fr)}
+  .count{display:none}
+  .pg{max-width:none;flex:1}
+  .brand{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .bar-anim{transform:none}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-q" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-go" viewBox="0 0 24 24"><path d="M5 12h12M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.2" fill="currentColor"/></symbol>
+<symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="m8 12 3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-xl" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18M3 14h18M9 4v16" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-form" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="i-ger" viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-eval" viewBox="0 0 24 24"><path d="M12 3v18M5 7h14M5 7l-3 7h6L5 7Zm14 0-3 7h6l-3-7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">MAAE <span>·</span> Inferencia</div>
+    <nav class="blocks" id="blocks" aria-label="Bloques de la sesión"></nav>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main class="stage" id="stage">
+
+<!-- 1 -->
+<section class="view" id="inicio" data-block="Fundamentos" data-title="Inicio">
+  <div class="wrap">
+    <div class="hero">
+      <div class="rv" style="--i:0">
+        <span class="eyebrow">Sesión 4 · Estadística inferencial</span>
+        <h1 style="margin-top:16px">De la muestra a la <em>decisión</em></h1>
+        <p class="lead">Cómo afirmar algo sobre una población que no se observó completa, cuánta confianza merece esa afirmación y cómo se usa al formular, gerenciar y evaluar proyectos.</p>
+      </div>
+      <div class="canvasbox rv" style="--i:1">
+        <canvas id="heroCanvas" role="img" aria-label="Una población de puntos de la que se sacan muestras al azar; cada muestra da una proporción distinta y las proporciones se acumulan en un histograma."></canvas>
+        <p class="note" id="heroTxt">Cada muestra que se saca de la misma población da una cifra distinta. La inferencia estudia esa variación para saber cuánto se puede confiar en una sola muestra.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="view" id="enfoques" data-block="Fundamentos" data-title="Descriptiva, frecuentista y bayesiana" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Tres maneras de mirar los datos</span>
+      <h2>Descriptiva, inferencial frecuentista e inferencial bayesiana</h2>
+      <p class="lead">Las tres trabajan con los mismos datos y responden preguntas distintas. El ejemplo es el mismo en las tres: la inasistencia escolar de niñas, niños y adolescentes de 6 a 16 años en los centros poblados y el rural disperso, según la ECV 2025.</p>
+    </div>
+    <div class="tabs rv" style="--i:1" role="tablist" data-tabs="enf">
+      <button class="tab" role="tab" aria-selected="true" data-p="enf-d">Descriptiva</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="enf-f">Inferencial frecuentista</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="enf-b">Inferencial bayesiana</button>
+    </div>
+    <div class="panel cols c64" id="enf-d" role="tabpanel">
+      <div class="prose">
+        <p><strong>Qué es.</strong> Resume lo que se observó: cuántos casos hay, qué proporción cumple una condición, cómo se reparte una variable entre grupos. No pretende ir más allá de los datos que tiene enfrente.</p>
+        <p><strong>Qué pregunta responde.</strong> ¿Qué muestran los datos que tengo?</p>
+        <p><strong>Cuándo basta.</strong> Cuando los datos cubren a toda la población de interés, como el registro completo de los beneficiarios de un programa. Ahí no hay muestra y no hay nada que inferir.</p>
+        <p><strong>En el ejemplo.</strong> La ECV encuestó a 22.490 niñas, niños y adolescentes de 6 a 16 años en zonas rurales. La descriptiva dice cuántos de ellos no estudian y cómo se reparten por región, pero solo habla de esos 22.490.</p>
+      </div>
+      <div class="box focus">
+        <div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Su límite</h3></div>
+        <p>Un proyecto no se formula para los 22.490 encuestados, sino para todos los niños rurales del país. Pasar de la muestra a esa población exige inferencia.</p>
+      </div>
+    </div>
+    <div class="panel cols c64" id="enf-f" role="tabpanel" hidden>
+      <div class="prose">
+        <p><strong>Qué es.</strong> Usa una muestra para hablar de la población. Trata el valor real, por ejemplo la inasistencia escolar rural del país, como un número fijo que no se conoce, y mide cuánto puede equivocarse el método con que se estima.</p>
+        <p><strong>Cómo entiende la probabilidad.</strong> Como la frecuencia con que algo ocurriría si el procedimiento se repitiera muchas veces. Su 95 % se refiere al método: de cada 100 encuestas posibles, unas 95 producirían un intervalo que contiene el valor real.</p>
+        <p><strong>Qué entrega.</strong> Estimaciones con intervalos de confianza y pruebas de hipótesis con valores p.</p>
+        <p><strong>En el ejemplo.</strong> Con los factores de expansión, la ECV estima que 6,59 % de los niños, niñas y adolescentes rurales de 6 a 16 años no estudia, con un intervalo de confianza aproximado de 6,13 % a 7,05 %.</p>
+      </div>
+      <div class="box focus">
+        <div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Por qué domina</h3></div>
+        <p>Es el enfoque con el que el DANE y la mayoría de oficinas estadísticas publican la precisión de sus cifras, y el que se usa en casi todos los informes de evaluación.</p>
+      </div>
+    </div>
+    <div class="panel cols c64" id="enf-b" role="tabpanel" hidden>
+      <div class="prose">
+        <p><strong>Qué es.</strong> Trata el valor real como incierto y le asigna una distribución de probabilidad. Parte de lo que ya se sabía (la distribución <em>a priori</em>), lo combina con los datos nuevos y entrega una distribución <em>a posteriori</em>.</p>
+        <p><strong>Cómo entiende la probabilidad.</strong> Como grado de certeza sobre un valor. Por eso permite decir directamente que hay 95 % de probabilidad de que la inasistencia esté entre dos cifras, o que hay 80 % de probabilidad de que supere la meta.</p>
+        <p><strong>Qué entrega.</strong> Intervalos de credibilidad y probabilidades directas sobre los valores que interesan a quien decide.</p>
+        <p><strong>En el ejemplo.</strong> Un programa que ya tenía la medición del año anterior la combina con la encuesta nueva y responde qué tan probable es que la inasistencia esté por debajo de la meta.</p>
+      </div>
+      <div class="box ok">
+        <div class="ttl"><svg class="ico"><use href="#i-ok"/></svg><h3>Cuándo conviene</h3></div>
+        <p>Con muestras pequeñas y buena información previa, por ejemplo en un municipio con pocos hogares encuestados. Con muestras grandes y sin información previa fuerte, sus números se parecen mucho a los frecuentistas, aunque se leen distinto.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="view" id="ciclo" data-block="Fundamentos" data-title="La inferencia en el ciclo del proyecto" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Para qué sirve</span>
+      <h2>La inferencia en el ciclo del proyecto</h2>
+      <p class="lead">En cada fase responde una pregunta distinta, y en todas evita lo mismo: decidir sobre una cifra que, dentro de su margen de error, podría ser otra. El hilo es un programa hipotético de permanencia escolar rural, construido sobre la línea base real de la ECV 2025.</p>
+    </div>
+    <div class="cycle">
+      <article class="phase rv" style="--i:1">
+        <div class="ttl"><svg class="ico"><use href="#i-form"/></svg><h3>Formulación</h3></div>
+        <ul>
+          <li><strong>Dimensionar el problema:</strong> 6,59 % de inasistencia rural, entre 6,13 % y 7,05 %.</li>
+          <li><strong>Fijar la línea base</strong> con su margen, para que el seguimiento tenga contra qué compararse.</li>
+          <li><strong>Plantear metas verificables:</strong> una meta que cae dentro del margen de error no se podrá comprobar.</li>
+          <li><strong>Focalizar:</strong> decidir si la diferencia entre regiones o zonas es real antes de concentrar recursos.</li>
+          <li><strong>Alimentar la evaluación ex ante:</strong> la población objetivo y la demanda que entran al análisis social y económico son estimaciones con margen.</li>
+        </ul>
+      </article>
+      <article class="phase rv" style="--i:2">
+        <div class="ttl"><svg class="ico"><use href="#i-ger"/></svg><h3>Gerencia y seguimiento</h3></div>
+        <ul>
+          <li><strong>Comparar el indicador con la meta:</strong> ¿el 5,5 % medido se aparta del 5 % esperado o es variación de la muestra?</li>
+          <li><strong>Detectar cambios entre mediciones</strong> sin confundir ruido con avance o con retroceso.</li>
+          <li><strong>Activar alertas</strong> solo cuando la desviación es real.</li>
+          <li><strong>Dimensionar las encuestas de seguimiento</strong> para que su margen sea menor que el cambio que se quiere ver.</li>
+        </ul>
+      </article>
+      <article class="phase rv" style="--i:3">
+        <div class="ttl"><svg class="ico"><use href="#i-eval"/></svg><h3>Evaluación de resultados e impacto</h3></div>
+        <ul>
+          <li><strong>¿Cambió?</strong> Antes y después en los participantes.</li>
+          <li><strong>¿Cambió más que sin el programa?</strong> Participantes frente a un grupo de comparación y diferencias en diferencias.</li>
+          <li><strong>¿De qué tamaño?</strong> El tamaño del efecto y su intervalo.</li>
+          <li><strong>¿La muestra alcanzaba para verlo?</strong> Potencia y efecto mínimo detectable.</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="view" id="muestra" data-block="Fundamentos" data-title="Población, muestra, parámetro y estimador" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Conceptos base</span>
+      <h2>Población, muestra, parámetro y estimador</h2>
+    </div>
+    <div class="cols">
+      <div class="prose rv" style="--i:1">
+        <div class="tw">
+          <table class="wrapcell">
+            <thead><tr><th>Concepto</th><th style="text-align:left">Qué es</th><th style="text-align:left">En el ejemplo</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Población</strong></td><td style="text-align:left">El conjunto completo sobre el que se quiere afirmar algo.</td><td style="text-align:left">Todos los niños, niñas y adolescentes rurales de 6 a 16 años.</td></tr>
+              <tr><td><strong>Muestra</strong></td><td style="text-align:left">La parte que se observa.</td><td style="text-align:left">Los 22.490 encuestados por la ECV.</td></tr>
+              <tr><td><strong>Parámetro</strong></td><td style="text-align:left">El valor real en la población: fijo y desconocido.</td><td style="text-align:left">La inasistencia rural real del país.</td></tr>
+              <tr><td><strong>Estimador</strong></td><td style="text-align:left">La regla de cálculo aplicada a la muestra.</td><td style="text-align:left">No asistentes ponderados entre total ponderado.</td></tr>
+              <tr><td><strong>Estimación</strong></td><td style="text-align:left">El número que da esa regla con esta muestra.</td><td style="text-align:left">6,59 %.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="box">
+          <div class="ttl"><svg class="ico"><use href="#i-q"/></svg><h3>Error muestral</h3></div>
+          <p>Es la distancia entre la estimación y el parámetro que se debe solo a haber observado una muestra. Los intervalos y las pruebas lo miden, y baja cuando la muestra crece.</p>
+        </div>
+        <div class="box alert">
+          <div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Error no muestral</h3></div>
+          <p>Respuestas falsas, preguntas mal entendidas, hogares que no responden, errores de digitación. <span class="k">Ningún intervalo lo mide</span> y una muestra más grande no lo corrige.</p>
+        </div>
+      </div>
+      <div class="box rv" style="--i:2">
+        <h3>Simulador: sacar otra muestra</h3>
+        <p class="note">La población tiene 2.000 niños y niñas; 6,6 % no estudia (puntos magenta). Cada clic sortea una muestra nueva y anota su estimación abajo.</p>
+        <canvas id="simPop" style="width:100%;height:170px;display:block" role="img" aria-label="Población simulada de 2.000 puntos con los puntos de la muestra resaltados."></canvas>
+        <div class="ctrl">
+          <div class="rng"><label for="simN">Tamaño de la muestra: <b id="simNv">200</b></label><input id="simN" type="range" min="0" max="3" step="1" value="1"></div>
+          <button class="btn solid" id="simGo" type="button">Sacar otra muestra</button>
+          <button class="btn" id="simMany" type="button">Sacar 50</button>
+        </div>
+        <div class="ctrl">
+          <div class="stat"><span>Última estimación</span><div class="big" id="simEst">·</div></div>
+          <div class="stat"><span>Muestras sacadas</span><div class="big" id="simCnt">0</div></div>
+        </div>
+        <canvas id="simHist" style="width:100%;height:150px;display:block" role="img" aria-label="Histograma de las estimaciones obtenidas en las muestras."></canvas>
+        <p class="note">Con muestras pequeñas las estimaciones se dispersan mucho alrededor de 6,6 %; con muestras grandes se concentran. Esa dispersión es el error muestral.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="view" id="tareas" data-block="Fundamentos" data-title="Estimar y contrastar" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Qué hace la inferencia</span>
+      <h2>Las dos tareas: estimar y contrastar</h2>
+      <p class="lead">Toda la inferencia frecuentista se organiza alrededor de dos tareas que comparten la misma pieza: el error estándar, que mide cuánto variaría una estimación de una muestra a otra.</p>
+    </div>
+    <div class="cols">
+      <div class="box focus rv" style="--i:1">
+        <span class="tag f">Estimar</span>
+        <h3>¿Cuánto vale?</h3>
+        <p><strong>Estimación puntual:</strong> una sola cifra, la mejor aproximación al parámetro. La inasistencia rural es 6,59 %.</p>
+        <p><strong>Estimación por intervalo:</strong> un rango de valores compatibles con los datos, con un nivel de confianza. Está entre 6,13 % y 7,05 %, con 95 % de confianza.</p>
+        <p class="note">Se usa para dimensionar problemas, fijar líneas base y reportar resultados.</p>
+      </div>
+      <div class="box ok rv" style="--i:2">
+        <span class="tag o">Contrastar</span>
+        <h3>¿Es cierta esta afirmación?</h3>
+        <p><strong>Prueba de hipótesis:</strong> decide entre dos afirmaciones sobre la población, por ejemplo, que la inasistencia no cambió o que sí cambió después del programa.</p>
+        <p>Calcula qué tan raro sería lo observado si no hubiera cambio. Si es muy raro, se concluye que el cambio es real.</p>
+        <p class="note">Se usa para seguimiento frente a metas, comparación de grupos y evaluación de resultados.</p>
+      </div>
+    </div>
+    <div class="formula rv" style="--i:3">
+      <div>Error estándar de una proporción = √( p × (1 − p) / n )</div>
+      <small>p es la proporción estimada (entre 0 y 1) y n el tamaño de la muestra. El error estándar crece cuando p se acerca a 0,5 y baja cuando n crece. Esta fórmula supone muestreo aleatorio simple; las vistas 13 a 16 muestran qué cambia en una encuesta como la ECV.</small>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="view" id="intervalo" data-block="Fundamentos" data-title="Intervalo de confianza" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Estimar con margen</span>
+      <h2>El intervalo de confianza</h2>
+    </div>
+    <div class="cols">
+      <div class="prose rv" style="--i:1">
+        <div class="formula">
+          <div>IC 95 % = p ± 1,96 × EE</div>
+          <small>1,96 viene de la distribución normal: entre −1,96 y +1,96 queda el 95 % central. Para 90 % se usa 1,645 y para 99 %, 2,576. El término 1,96 × EE es el margen de error.</small>
+        </div>
+        <div class="box">
+          <h3>Ejemplo: encuesta de seguimiento del programa</h3>
+          <dl class="kv">
+            <dt>Datos</dt><dd>800 niños y niñas; 44 no estudian</dd>
+            <dt>Proporción</dt><dd class="m">p = 44 / 800 = 0,055</dd>
+            <dt>Error estándar</dt><dd class="m">√(0,055 × 0,945 / 800) = 0,0081</dd>
+            <dt>Margen</dt><dd class="m">1,96 × 0,0081 = 0,0158</dd>
+            <dt>Intervalo</dt><dd class="r">3,9 % a 7,1 %</dd>
+          </dl>
+        </div>
+        <div class="trio" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+          <div class="box ok"><div class="ttl"><svg class="ico"><use href="#i-ok"/></svg><h3>Cómo se lee</h3></div><p>El método produce intervalos que, en muchas encuestas repetidas, contienen el valor real 95 veces de cada 100. Los valores entre 3,9 % y 7,1 % son compatibles con los datos.</p></div>
+          <div class="box alert"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Lectura equivocada</h3></div><p>«Hay 95 % de probabilidad de que el valor real esté entre 3,9 % y 7,1 %» es una lectura bayesiana. Aquí el valor real es fijo: está o no está en el intervalo.</p></div>
+        </div>
+      </div>
+      <div class="box rv" style="--i:2">
+        <h3>Simulación: 100 encuestas de 800 niños</h3>
+        <p class="note">El valor real es 6,59 % (línea celeste). Cada línea horizontal es el intervalo de una encuesta. En magenta, los que no contienen el valor real.</p>
+        <svg id="ciSvg" viewBox="0 0 520 330" style="width:100%;height:auto;display:block" role="img" aria-label="Cien intervalos de confianza simulados; la mayoría cruza el valor real."></svg>
+        <div class="ctrl">
+          <button class="btn solid" id="ciGo" type="button">Simular otras 100 encuestas</button>
+          <div class="stat"><span>Contienen el valor real</span><div class="big" id="ciHit">·</div></div>
+        </div>
+        <p class="note">El ancho del intervalo baja cuando crece la muestra y sube cuando se pide más confianza. Para reducir el margen a la mitad hay que cuadruplicar la muestra, y eso se paga en el presupuesto de la encuesta.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="view" id="prueba" data-block="Fundamentos" data-title="Lógica de una prueba de hipótesis" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Contrastar</span>
+      <h2>La lógica de una prueba de hipótesis</h2>
+    </div>
+    <div class="cols">
+      <div class="prose rv" style="--i:1">
+        <div class="box">
+          <dl class="kv">
+            <dt>1. Hipótesis</dt><dd><strong>H₀ (nula):</strong> el programa no cambió la inasistencia; sigue en 6,59 %. <strong>H₁ (alternativa):</strong> la inasistencia es distinta de 6,59 %.</dd>
+            <dt>2. Nivel α</dt><dd>El riesgo que se acepta de rechazar H₀ cuando es cierta. Lo usual es 5 %.</dd>
+            <dt>3. Estadístico</dt><dd>Cuántos errores estándar separan lo observado de lo que dice H₀: <span class="mono">z = (0,055 − 0,0659) / 0,0088 = −1,24</span></dd>
+            <dt>4. Valor p</dt><dd>La probabilidad de ver una distancia así o mayor si H₀ fuera cierta: <span class="mono">p = 0,21</span></dd>
+            <dt>5. Decisión</dt><dd>Como 0,21 es mayor que 0,05, <strong>no se rechaza H₀</strong>: con 800 niños no se puede afirmar que la inasistencia bajó. Eso no prueba que el programa no funcionó; puede que la muestra no alcance para verlo.</dd>
+          </dl>
+        </div>
+        <div class="tw">
+          <table class="wrapcell">
+            <thead><tr><th>Decisión</th><th style="text-align:left">Si en realidad H₀ es cierta</th><th style="text-align:left">Si en realidad H₀ es falsa</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Rechazar H₀</strong></td><td style="text-align:left"><span class="k">Error tipo I (α).</span> Declarar que el programa funcionó cuando no.</td><td style="text-align:left"><span class="g">Acierto: potencia (1 − β).</span></td></tr>
+              <tr><td><strong>No rechazar H₀</strong></td><td style="text-align:left"><span class="g">Acierto.</span></td><td style="text-align:left"><span class="k">Error tipo II (β).</span> Concluir que no hubo efecto cuando sí lo hubo.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="box rv" style="--i:2">
+        <h3>Potencia: ¿puede la prueba ver el efecto?</h3>
+        <p class="note">Curva gris: estimaciones posibles si el programa no hizo nada (6,59 %). Curva celeste: estimaciones posibles si redujo la inasistencia. Zona magenta: rechazo de H₀ con α = 5 %. La potencia es la parte de la curva celeste que cae en esa zona.</p>
+        <svg id="powSvg" viewBox="0 0 520 230" style="width:100%;height:auto;display:block" role="img" aria-label="Dos distribuciones normales, bajo la hipótesis nula y bajo la alternativa, con la zona de rechazo sombreada."></svg>
+        <div class="ctrl">
+          <div class="rng"><label for="powN">Tamaño de la muestra: <b id="powNv">800</b></label><input id="powN" type="range" min="200" max="6000" step="100" value="800"></div>
+          <div class="rng"><label for="powD">Reducción real: <b id="powDv">1,5</b> puntos</label><input id="powD" type="range" min="0.5" max="3" step="0.1" value="1.5"></div>
+        </div>
+        <div class="ctrl">
+          <div class="stat"><span>Potencia</span><div class="big" id="powOut">·</div></div>
+          <p class="note" style="flex:1;min-width:220px" id="powTxt"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="view" id="pruebas" data-block="Pruebas" data-title="Qué prueba usar" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Catálogo</span>
+      <h2>Qué prueba usar</h2>
+      <p class="lead">La prueba se elige respondiendo tres preguntas: qué tipo de variable es el resultado (sí o no, numérica o de categorías), cuántos grupos se comparan y si se trata de grupos distintos o de las mismas unidades medidas dos veces.</p>
+    </div>
+    <div class="selgrid rv" style="--i:1" role="tablist" id="selgrid"></div>
+    <div id="ficha" class="rv" style="--i:2"></div>
+    <p class="note rv" style="--i:3">Las funciones y herramientas de Excel tratan cada fila como una observación independiente y sin peso. Con datos de encuesta como la ECV, las proporciones y medias se ponderan con el factor de expansión y el error estándar se ajusta por el diseño, como se muestra en las vistas 13 a 16.</p>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="view" id="seguimiento" data-block="Ciclo del proyecto" data-title="Inferencia en el seguimiento" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Gerencia y seguimiento</span>
+      <h2>¿El indicador se desvió de la meta o cambió de verdad?</h2>
+      <p class="lead"><span class="tag a">Ejemplo hipotético</span> El programa de permanencia escolar rural parte de la línea base de la ECV 2025 (6,59 %) y fija como meta bajar a 5,0 %. A los doce meses, una encuesta de seguimiento a 800 niños y niñas de los municipios del programa encuentra que 44 no estudian: 5,5 %.</p>
+    </div>
+    <div class="chart rv" style="--i:1">
+      <svg viewBox="0 0 900 170" role="img" aria-label="Recta con la meta en 5 %, la línea base en 6,59 % y el intervalo de la encuesta de seguimiento de 3,9 % a 7,1 %, que contiene a ambas.">
+        <line x1="60" y1="110" x2="860" y2="110" stroke="var(--line-2)" stroke-width="2"/>
+        <g font-size="14" fill="var(--muted)" text-anchor="middle">
+          <text x="60" y="140">3 %</text><text x="220" y="140">4 %</text><text x="380" y="140">5 %</text><text x="540" y="140">6 %</text><text x="700" y="140">7 %</text><text x="860" y="140">8 %</text>
+        </g>
+        <line class="bar-anim" style="--i:0" x1="207.2" y1="80" x2="732.8" y2="80" stroke="var(--focus)" stroke-width="10" stroke-linecap="round"/>
+        <circle cx="460" cy="80" r="9" fill="var(--strong)"/>
+        <text x="460" y="58" text-anchor="middle" font-size="15" fill="var(--strong)">Seguimiento: 5,5 % (3,9 a 7,1)</text>
+        <line x1="380" y1="96" x2="380" y2="124" stroke="var(--ok)" stroke-width="4"/>
+        <text x="380" y="162" text-anchor="middle" font-size="14" fill="var(--ok)">Meta 5,0 %</text>
+        <line x1="634.4" y1="96" x2="634.4" y2="124" stroke="var(--alert)" stroke-width="4"/>
+        <text x="634.4" y="162" text-anchor="middle" font-size="14" fill="var(--alert)">Línea base 6,59 %</text>
+      </svg>
+    </div>
+    <div class="cols">
+      <div class="box rv" style="--i:2">
+        <span class="tag f">Prueba z de una proporción frente a la meta</span>
+        <dl class="kv">
+          <dt>Hipótesis</dt><dd>H₀: la inasistencia está en la meta, 5,0 %.</dd>
+          <dt>EE bajo H₀</dt><dd class="m">√(0,05 × 0,95 / 800) = 0,0077</dd>
+          <dt>Estadístico</dt><dd class="m">z = (0,055 − 0,050) / 0,0077 = 0,65</dd>
+          <dt>Valor p</dt><dd class="r">0,52</dd>
+        </dl>
+        <p>La cifra medida es compatible con la meta: no hay evidencia de desviación.</p>
+      </div>
+      <div class="box rv" style="--i:3">
+        <span class="tag f">Prueba z de una proporción frente a la línea base</span>
+        <dl class="kv">
+          <dt>Hipótesis</dt><dd>H₀: la inasistencia sigue en 6,59 %.</dd>
+          <dt>EE bajo H₀</dt><dd class="m">√(0,0659 × 0,9341 / 800) = 0,0088</dd>
+          <dt>Estadístico</dt><dd class="m">z = (0,055 − 0,0659) / 0,0088 = −1,24</dd>
+          <dt>Valor p</dt><dd class="r">0,21</dd>
+        </dl>
+        <p>Tampoco se puede afirmar que bajó respecto de la línea base.</p>
+      </div>
+    </div>
+    <div class="trio">
+      <div class="box alert rv" style="--i:4"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>El problema</h3></div><p>Con 800 niños el margen es de 1,6 puntos, mayor que la distancia entre la meta y la línea base. La encuesta no puede distinguir entre «cumplió» y «no se movió».</p></div>
+      <div class="box ok rv" style="--i:5"><div class="ttl"><svg class="ico"><use href="#i-ok"/></svg><h3>Qué se hace</h3></div><p>Se dimensiona la encuesta de seguimiento para que su margen sea menor que el cambio que se busca, y el cumplimiento se reporta con el intervalo, no con la cifra sola.</p></div>
+      <div class="box rv" style="--i:6"><div class="ttl"><svg class="ico"><use href="#i-xl"/></svg><h3>En Excel</h3></div><code class="xl">=(0,055-0,05)/RAIZ(0,05*0,95/800)
+=2*(1-DISTR.NORM.ESTAND.N(ABS(z);VERDADERO))</code><p class="note">Se trata la línea base y la meta como valores de referencia fijos; es una simplificación.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="view" id="evaluacion" data-block="Ciclo del proyecto" data-title="Inferencia en la evaluación" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Evaluación de resultados e impacto</span>
+      <h2>¿Cambió, y se le puede atribuir al programa?</h2>
+      <p class="lead">Evaluar el impacto es comparar lo que pasó con lo que habría pasado sin el programa. Ese escenario, el <span class="c">contrafactual</span>, nunca se observa, así que se aproxima con un grupo de comparación. <span class="tag a">Ejemplo hipotético</span> 1.000 niños y niñas en municipios del programa y 1.000 en municipios similares sin programa, medidos antes y después.</p>
+    </div>
+    <div class="cols c64">
+      <div class="tw rv" style="--i:1">
+        <table>
+          <thead><tr><th>Inasistencia escolar</th><th>Antes</th><th>Después</th><th>Cambio</th></tr></thead>
+          <tbody>
+            <tr><td>Participantes</td><td>7,0 %</td><td>4,5 %</td><td>−2,5</td></tr>
+            <tr><td>Comparación</td><td>6,5 %</td><td>6,0 %</td><td>−0,5</td></tr>
+            <tr><td>Diferencia</td><td>0,5</td><td>−1,5</td><td><strong class="c">−2,0</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box alert rv" style="--i:2">
+        <div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Sesgo de selección</h3></div>
+        <p>Si los municipios del programa se eligieron por ser los más necesitados, o las familias decidieron participar, los grupos ya eran distintos antes. Una diferencia significativa dice que la brecha es real, <span class="k">no que la causó el programa</span>.</p>
+      </div>
+    </div>
+    <div class="tabs rv" style="--i:3" role="tablist" data-tabs="ev">
+      <button class="tab" role="tab" aria-selected="true" data-p="ev-ad">Antes y después</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="ev-pn">Participantes y no participantes</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="ev-dd">Diferencias en diferencias</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="ev-mc">Mismos niños: McNemar</button>
+    </div>
+    <div class="panel cols c64" id="ev-ad" role="tabpanel">
+      <div class="box">
+        <dl class="kv">
+          <dt>Comparación</dt><dd>Participantes después frente a participantes antes, como muestras independientes.</dd>
+          <dt>Diferencia</dt><dd class="m">4,5 − 7,0 = −2,5 puntos</dd>
+          <dt>EE</dt><dd class="m">√(0,045×0,955/1000 + 0,07×0,93/1000) = 1,04 puntos</dd>
+          <dt>z y valor p</dt><dd class="m">z = −2,40 ; p = 0,016</dd>
+          <dt>IC 95 %</dt><dd class="r">−4,5 a −0,5 puntos</dd>
+        </dl>
+      </div>
+      <div class="box alert"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Qué mezcla</h3></div><p>El cambio es significativo, pero incluye todo lo que pasó en ese año: la tendencia general, otros programas, la economía. En los municipios sin programa también bajó medio punto.</p></div>
+    </div>
+    <div class="panel cols c64" id="ev-pn" role="tabpanel" hidden>
+      <div class="box">
+        <dl class="kv">
+          <dt>Comparación</dt><dd>Participantes frente a comparación, solo después.</dd>
+          <dt>Diferencia</dt><dd class="m">4,5 − 6,0 = −1,5 puntos</dd>
+          <dt>EE</dt><dd class="m">√(0,045×0,955/1000 + 0,06×0,94/1000) = 1,00 punto</dd>
+          <dt>z y valor p</dt><dd class="m">z = −1,50 ; p = 0,13</dd>
+          <dt>IC 95 %</dt><dd class="r">−3,5 a 0,5 puntos</dd>
+        </dl>
+      </div>
+      <div class="box alert"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Qué mezcla</h3></div><p>Compara grupos que ya eran distintos antes del programa: los participantes partían medio punto por encima. La diferencia del después combina el efecto con esa brecha inicial.</p></div>
+    </div>
+    <div class="panel cols c64" id="ev-dd" role="tabpanel" hidden>
+      <div class="box">
+        <dl class="kv">
+          <dt>Comparación</dt><dd>El cambio de los participantes menos el cambio de la comparación.</dd>
+          <dt>Efecto estimado</dt><dd class="m">(4,5 − 7,0) − (6,0 − 6,5) = −2,0 puntos</dd>
+          <dt>EE</dt><dd class="m">√(suma de las cuatro varianzas) = 1,50 puntos</dd>
+          <dt>z y valor p</dt><dd class="m">z = −1,33 ; p = 0,18</dd>
+          <dt>IC 95 %</dt><dd class="r">−4,9 a 0,9 puntos</dd>
+        </dl>
+      </div>
+      <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Cómo se lee</h3></div><p>Descuenta la tendencia común y la brecha inicial. La mejor estimación del efecto es una reducción de 2 puntos, casi un tercio de la línea base, pero con 1.000 niños por grupo no se distingue de cero. El supuesto clave es que sin programa ambos grupos habrían seguido tendencias paralelas.</p></div>
+    </div>
+    <div class="panel cols c64" id="ev-mc" role="tabpanel" hidden>
+      <div class="box">
+        <dl class="kv">
+          <dt>Diseño</dt><dd>Los mismos 1.000 participantes, seguidos antes y después (panel).</dd>
+          <dt>Cambiaron</dt><dd>b = 50 no estudiaban y volvieron; c = 25 estudiaban y dejaron.</dd>
+          <dt>Estadístico</dt><dd class="m">χ² = (b − c)² / (b + c) = 625 / 75 = 8,33</dd>
+          <dt>Valor p</dt><dd class="r">0,004 (1 grado de libertad)</dd>
+          <dt>En Excel</dt><dd><code class="xl">=DISTR.CHICUAD.CD((50-25)^2/(50+25);1)</code></dd>
+        </dl>
+      </div>
+      <div class="box ok"><div class="ttl"><svg class="ico"><use href="#i-ok"/></svg><h3>Por qué gana precisión</h3></div><p>Cada niño es su propio control y solo cuentan los que cambiaron. Con los mismos datos de antes y después, la prueba pareada da p = 0,004, frente a 0,016 tratándolos como muestras independientes. Sigue sin resolver la atribución: para eso hace falta el grupo de comparación.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="view" id="potencia" data-block="Ciclo del proyecto" data-title="Potencia y efecto mínimo detectable" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Diseñar la evaluación</span>
+      <h2>Potencia y efecto mínimo detectable</h2>
+      <p class="lead">Una evaluación sin muestra suficiente casi siempre concluye «no hubo efecto», aunque lo haya. Por eso el tamaño de la muestra se calcula antes, a partir del efecto que se espera y del riesgo de error que se acepta.</p>
+    </div>
+    <div class="cols">
+      <div class="prose rv" style="--i:1">
+        <div class="formula">
+          <div>EMD = (z₁₋α/₂ + z₁₋β) × √( deff × 2 × p × (1 − p) / n )</div>
+          <small>El efecto mínimo detectable (EMD) es el cambio más pequeño que la evaluación puede distinguir de cero. Con α = 5 % y potencia de 80 %, z₁₋α/₂ + z₁₋β = 1,96 + 0,84 = 2,80. n es el tamaño de cada grupo, p la línea base y deff el efecto de diseño.</small>
+        </div>
+        <div class="formula">
+          <div>n por grupo = deff × 2,80² × [p₁(1 − p₁) + p₂(1 − p₂)] / (p₁ − p₂)²</div>
+          <small>Para detectar una baja de 6,59 % a 4,59 % se necesitan 2.068 niños por grupo en un muestreo aleatorio simple, y el doble si el efecto de diseño es 2.</small>
+        </div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Lo que explica el ejemplo</h3></div><p>Con 1.000 niños por grupo el EMD de una comparación simple es 3,1 puntos, y en diferencias en diferencias, que suma cuatro varianzas, crece cerca de √2 veces. Un efecto de 2 puntos no se podía ver.</p></div>
+      </div>
+      <div class="box rv" style="--i:2">
+        <h3>Calculadora</h3>
+        <p class="note">Línea base: 6,59 % (inasistencia rural, ECV 2025). α = 5 %, potencia = 80 %.</p>
+        <div class="rng"><label for="mdN">Niños por grupo: <b id="mdNv">1.000</b></label><input id="mdN" type="range" min="250" max="8000" step="250" value="1000"></div>
+        <div class="rng"><label for="mdD">Efecto de diseño: <b id="mdDv">1,0</b></label><input id="mdD" type="range" min="1" max="4" step="0.1" value="1"></div>
+        <div class="rng"><label for="mdE">Efecto esperado: <b id="mdEv">2,0</b> puntos</label><input id="mdE" type="range" min="0.5" max="4" step="0.1" value="2"></div>
+        <div class="cols" style="gap:14px">
+          <div class="stat"><span>EMD con esa muestra</span><div class="big" id="mdOut">·</div></div>
+          <div class="stat"><span>Niños por grupo necesarios</span><div class="big" id="mdNeed">·</div></div>
+        </div>
+        <p id="mdTxt" style="font-weight:600"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="view" id="relevancia" data-block="Ciclo del proyecto" data-title="Significancia frente a relevancia" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Tamaño del efecto</span>
+      <h2>Significativo no es lo mismo que importante</h2>
+      <p class="lead">La significancia responde si una diferencia es real. El tamaño del efecto responde si es grande. Con muestras muy grandes casi todo es significativo; con muestras pequeñas, efectos importantes pasan sin verse. Para decidir se necesitan las dos respuestas.</p>
+    </div>
+    <div class="cols">
+      <div class="quad rv" style="--i:1" role="tablist" id="quad">
+        <button class="qc" role="tab" aria-selected="true" data-q="0"><b>Significativo y pequeño</b><span class="note">Real, pero de poca magnitud</span></button>
+        <button class="qc" role="tab" aria-selected="false" data-q="1"><b>Significativo y grande</b><span class="note">Real y de magnitud relevante</span></button>
+        <button class="qc" role="tab" aria-selected="false" data-q="2"><b>No significativo y pequeño</b><span class="note">Nada que reportar</span></button>
+        <button class="qc" role="tab" aria-selected="false" data-q="3"><b>No significativo y grande</b><span class="note">Posible efecto que la muestra no ve</span></button>
+      </div>
+      <div class="box focus rv" style="--i:2" id="quadTxt" aria-live="polite"></div>
+    </div>
+    <div class="tw rv" style="--i:3">
+      <table class="wrapcell">
+        <thead><tr><th>Medida</th><th style="text-align:left">Para qué</th><th style="text-align:left">Referencia de Cohen</th></tr></thead>
+        <tbody>
+          <tr><td>Diferencia absoluta y relativa</td><td style="text-align:left">Proporciones, en puntos y en porcentaje de la línea base. Es la más útil para un proyecto.</td><td style="text-align:left">Se juzga contra la meta</td></tr>
+          <tr><td>h de Cohen</td><td style="text-align:left">Dos proporciones en una escala común.</td><td style="text-align:left">0,2 pequeño · 0,5 mediano · 0,8 grande</td></tr>
+          <tr><td>d de Cohen</td><td style="text-align:left">Dos medias, en desviaciones estándar.</td><td style="text-align:left">0,2 · 0,5 · 0,8</td></tr>
+          <tr><td>r</td><td style="text-align:left">Correlación entre dos variables numéricas.</td><td style="text-align:left">0,1 · 0,3 · 0,5</td></tr>
+          <tr><td>V de Cramér y η²</td><td style="text-align:left">Asociación entre categorías; varianza explicada en ANOVA.</td><td style="text-align:left">Dependen del número de categorías</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="view" id="diseno" data-block="Encuestas y cálculos" data-title="Encuestas complejas y efecto de diseño" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Por qué la ECV no es una muestra aleatoria simple</span>
+      <h2>Encuestas complejas y efecto de diseño</h2>
+      <p class="lead">Las fórmulas anteriores suponen que cada persona se sorteó de manera independiente y con la misma probabilidad. La ECV usa una muestra probabilística, estratificada, de conglomerados y en varias etapas: se seleccionan municipios, dentro de ellos segmentos de unas diez viviendas, y en cada vivienda se encuesta a todos los hogares y personas.</p>
+    </div>
+    <div class="cols c3">
+      <div class="box rv" style="--i:1"><span class="tag o">Reduce el error</span><h3>Estratos</h3><p>Las unidades se agrupan en estratos parecidos y se sortea dentro de cada uno. Garantiza que todas las zonas queden representadas.</p></div>
+      <div class="box rv" style="--i:2"><span class="tag a">Aumenta el error</span><h3>Conglomerados</h3><p>Las personas de un mismo hogar y los hogares de un mismo segmento se parecen: comparten barrio, servicios y muchas veces la afiliación a salud o la escuela. Cada persona adicional del mismo conglomerado aporta menos información nueva.</p></div>
+      <div class="box rv" style="--i:3"><span class="tag a">Aumenta el error</span><h3>Pesos desiguales</h3><p>Para dar cifras por departamento, la encuesta visita proporcionalmente más hogares donde hay poca población. En el archivo de hogares, Bogotá aporta 1.866 hogares que representan en promedio a unos 1.700 cada uno; Orinoquía-Amazonía aporta 17.422, que representan a unos 33.</p></div>
+    </div>
+    <div class="cols rv" style="--i:4">
+      <div class="formula"><div>deff = varianza con el diseño real / varianza con muestreo aleatorio simple</div><small>Cuántas veces más grande es la varianza real que la que supone la fórmula simple.</small></div>
+      <div class="formula"><div>n efectivo = n / deff</div><small>El tamaño de una muestra aleatoria simple que daría la misma precisión.</small></div>
+    </div>
+    <p class="lead rv" style="--i:5">Las tres vistas siguientes calculan el intervalo del mismo indicador de tres maneras: el <strong>porcentaje de personas afiliadas al Sistema General de Seguridad Social en Salud</strong>, con el archivo de hogares de la ECV 2025. Las columnas que intervienen son FEX_C (C), CLASE (D), PERSONAS (F), P_AFIL_RESP (P) y P_SIN_AFILIACION (Q); los afiliados de cada hogar son P menos Q y cada persona lleva el factor de su hogar.</p>
+  </div>
+</section>
+
+<!-- 14 -->
+<section class="view" id="mas" data-block="Encuestas y cálculos" data-title="Cálculo 1: muestreo aleatorio simple" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Cálculo 1 de 3</span>
+      <h2>Muestreo aleatorio simple</h2>
+      <p class="lead">Aplica la fórmula del libro de texto como si las 235.350 personas se hubieran sorteado una por una.</p>
+    </div>
+    <div class="stepper rv" style="--i:1" data-stepper>
+      <div class="sdots"></div>
+      <div class="step">
+        <div class="box"><h3>Proporción ponderada</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">p = Σ(FEX × afiliados) / Σ(FEX × personas)</dd>
+          <dt>Con los datos</dt><dd class="m">51.891.019 / 53.368.102</dd>
+          <dt>Resultado</dt><dd class="r">p = 0,97232 → 97,23 %</dd>
+          <dt>En Excel</dt><dd><code class="xl">=SUMAPRODUCTO(Hogares!C2:C87061;Hogares!P2:P87061-Hogares!Q2:Q87061)/SUMAPRODUCTO(Hogares!C2:C87061;Hogares!F2:F87061)</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Qué se hizo</h3></div><p>El numerador estima cuántas personas afiliadas hay en el país y el denominador cuántas personas hay en total. SUMAPRODUCTO multiplica fila por fila y suma. El resultado coincide con el publicado por el DANE.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Tamaño de la muestra</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">n = Σ personas encuestadas, sin ponderar</dd>
+          <dt>Resultado</dt><dd class="r">n = 235.350</dd>
+          <dt>En Excel</dt><dd><code class="xl">=SUMA(Hogares!F2:F87061)</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Qué se hizo</h3></div><p>Aquí no entra el factor de expansión: n cuenta personas entrevistadas, no personas representadas. El error depende de cuánta información se recogió.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Error estándar</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">EE = √( p × (1 − p) / n )</dd>
+          <dt>Con los datos</dt><dd class="m">√( 0,97232 × 0,02768 / 235.350 )</dd>
+          <dt>Resultado</dt><dd class="r">EE = 0,000338 → 0,034 puntos</dd>
+          <dt>En Excel</dt><dd><code class="xl">=RAIZ(B2*(1-B2)/B3)</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Qué se hizo</h3></div><p>Los cálculos van en una hoja aparte: B2 tiene la proporción y B3 el tamaño. El error estándar queda en B4.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Margen e intervalo</h3><dl class="kv">
+          <dt>Margen</dt><dd class="m">1,96 × 0,000338 = 0,000663 → 0,07 puntos</dd>
+          <dt>Intervalo</dt><dd class="m">97,232 ± 0,066</dd>
+          <dt>Resultado</dt><dd class="r">97,17 % a 97,30 %</dd>
+          <dt>En Excel</dt><dd><code class="xl">=INV.NORM.ESTAND(0,975)                       → 1,96 en B5
+=B5*B4                                       → margen en B6
+=B2-B6   y   =B2+B6                           → límites
+=INTERVALO.CONFIANZA.NORM(0,05;RAIZ(B2*(1-B2));B3)   → margen en un paso</code></dd></dl></div>
+        <div class="box alert"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Qué deja por fuera</h3></div><p>Ignora los pesos desiguales, los conglomerados y los estratos. El intervalo resulta <span class="k">demasiado estrecho</span> y transmite una precisión que la encuesta no tiene.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><div class="ttl"><svg class="ico"><use href="#i-xl"/></svg><h3>Atajo: Herramientas para análisis</h3></div>
+          <p>Se activa en Archivo, Opciones, Complementos, Administrar complementos de Excel, Ir, marcando «Herramientas para análisis». Aparece en Datos, Análisis de datos.</p>
+          <p>La opción <strong>Estadística descriptiva</strong> trae la casilla <strong>Resumen de estadísticas</strong>, que entrega en un solo cuadro media, error típico, mediana, moda, desviación estándar, varianza, curtosis, coeficiente de asimetría, rango, mínimo, máximo, suma y cuenta. La casilla <strong>Nivel de confianza para la media</strong> agrega el margen de error de la media con la distribución t. Sobre una columna de unos y ceros, esa media es una proporción.</p></div>
+        <div class="box alert"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Límite del atajo</h3></div><p>No usa factores de expansión y trata cada fila como una observación. Con este archivo daría una cifra sin ponderar y por hogar, no por persona. Sirve para muestras aleatorias simples sin pesos.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 -->
+<section class="view" id="kish" data-block="Encuestas y cálculos" data-title="Cálculo 2: tamaño efectivo de Kish" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Cálculo 2 de 3</span>
+      <h2>Tamaño efectivo de Kish</h2>
+      <p class="lead">Leslie Kish propuso medir cuánta precisión se pierde por usar pesos desiguales: cuando unas observaciones pesan mucho más que otras, la muestra se comporta como si fuera más pequeña.</p>
+    </div>
+    <div class="stepper rv" style="--i:1" data-stepper>
+      <div class="sdots"></div>
+      <div class="step">
+        <div class="box"><h3>Tamaño efectivo</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">n ef. = (Σ FEX × personas)² / Σ (FEX² × personas)</dd>
+          <dt>Con los datos</dt><dd class="m">53.368.102² / 44.178.088.519</dd>
+          <dt>Resultado</dt><dd class="r">n efectivo = 64.470 personas</dd>
+          <dt>En Excel</dt><dd><code class="xl">=SUMAPRODUCTO(Hogares!C2:C87061;Hogares!F2:F87061)^2/SUMAPRODUCTO(Hogares!C2:C87061^2;Hogares!F2:F87061)</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Qué se hizo</h3></div><p>Cada persona lleva el peso de su hogar, así que cada hogar entra tantas veces como personas tiene. Si todos los pesos fueran iguales, el resultado sería 235.350. Queda en C3.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Efecto de diseño por pesos</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">deff = n / n efectivo</dd>
+          <dt>Con los datos</dt><dd class="m">235.350 / 64.470</dd>
+          <dt>Resultado</dt><dd class="r">deff = 3,65</dd>
+          <dt>En Excel</dt><dd><code class="xl">=B3/C3</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Cómo se lee</h3></div><p>Solo por la desigualdad de los pesos, la varianza es 3,65 veces la que supone el cálculo simple. Las 235.350 personas rinden como unas 64.500 sorteadas al azar.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Error estándar e intervalo</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">EE = √( p × (1 − p) / n efectivo )</dd>
+          <dt>Con los datos</dt><dd class="m">√( 0,97232 × 0,02768 / 64.470 ) = 0,000646</dd>
+          <dt>Margen</dt><dd class="m">1,96 × 0,000646 = 0,00127 → 0,13 puntos</dd>
+          <dt>Resultado</dt><dd class="r">97,11 % a 97,36 %</dd>
+          <dt>En Excel</dt><dd><code class="xl">=RAIZ(B2*(1-B2)/C3)                                 → EE en C4
+=INTERVALO.CONFIANZA.NORM(0,05;RAIZ(B2*(1-B2));C3)   → margen en un paso</code></dd></dl></div>
+        <div class="box alert"><div class="ttl"><svg class="ico"><use href="#i-warn"/></svg><h3>Qué deja por fuera</h3></div><p>Recoge los pesos, pero no los conglomerados ni los estratos. El intervalo es casi el doble del anterior y sigue siendo <span class="k">más estrecho</span> que el real. Sirve para indicadores propios que no tienen cifra oficial, declarando el método.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 -->
+<section class="view" id="dane" data-block="Encuestas y cálculos" data-title="Cálculo 3: el intervalo oficial del DANE" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Cálculo 3 de 3</span>
+      <h2>El intervalo oficial del DANE</h2>
+      <p class="lead">El DANE calcula la precisión con el diseño completo y la publica en los anexos generales de la ECV 2025. Cada cifra trae el valor, el límite inferior (L Inf.), el límite superior (L Sup.) y el <span class="c">coeficiente de variación estimado (CVE)</span>: el error estándar como porcentaje de la estimación.</p>
+    </div>
+    <div class="tw rv" style="--i:1">
+      <table>
+        <thead><tr><th>Cuadro 20 · Total nacional</th><th>%</th><th>L Inf.</th><th>L Sup.</th><th>CVE</th></tr></thead>
+        <tbody><tr><td>Personas afiliadas al S.G.S.S.S.</td><td>97,23</td><td>96,99</td><td>97,47</td><td>0,127</td></tr></tbody>
+      </table>
+    </div>
+    <div class="stepper rv" style="--i:2" data-stepper>
+      <div class="sdots"></div>
+      <div class="step">
+        <div class="box"><h3>Del CVE al error estándar</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">EE = CVE / 100 × p</dd>
+          <dt>Con los datos</dt><dd class="m">0,127 / 100 × 0,97232</dd>
+          <dt>Resultado</dt><dd class="r">EE = 0,001236 → 0,12 puntos</dd>
+          <dt>En Excel</dt><dd><code class="xl">=D9/100*B2      → EE en D4 (D9 guarda el CVE del anexo, 0,12716709)</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Comprobación</h3></div><p>97,23 ± 1,96 × 0,124 reproduce el intervalo publicado, de 96,99 % a 97,47 %. Para el intervalo no hace falta calcular: ya viene en el anexo. El error estándar se necesita para comparar grupos o hacer pruebas.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Efecto de diseño completo</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">deff = (EE del DANE / EE del muestreo simple)²</dd>
+          <dt>Con los datos</dt><dd class="m">(0,001236 / 0,000338)²</dd>
+          <dt>Resultado</dt><dd class="r">deff = 13,4</dd>
+          <dt>En Excel</dt><dd><code class="xl">=(D4/B4)^2      → deff en D5</code></dd></dl></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Cómo se lee</h3></div><p>La varianza real es 13,4 veces la del cálculo simple. La mayor parte viene de los conglomerados: la afiliación se comparte mucho dentro de cada hogar y cada segmento.</p></div>
+      </div>
+      <div class="step" hidden>
+        <div class="box"><h3>Tamaño efectivo implícito</h3><dl class="kv">
+          <dt>Fórmula</dt><dd class="m">n efectivo = n / deff</dd>
+          <dt>Con los datos</dt><dd class="m">235.350 / 13,4</dd>
+          <dt>Resultado</dt><dd class="r">cerca de 17.600 personas</dd>
+          <dt>En Excel</dt><dd><code class="xl">=B3/D5</code></dd></dl></div>
+        <div class="box ok"><div class="ttl"><svg class="ico"><use href="#i-ok"/></svg><h3>El CVE como control de calidad</h3></div><p>Los boletines de la ECV marcan con asterisco las cifras con CVE superior a 15 %, que deben usarse con cautela. Antes de citar una cifra por departamento se revisa su CVE. Su límite: solo existe para los indicadores que el DANE publica.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 -->
+<section class="view" id="comparacion" data-block="Encuestas y cálculos" data-title="Los tres intervalos lado a lado" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Comparación</span>
+      <h2>Los tres intervalos lado a lado</h2>
+      <p class="lead">La estimación es la misma, 97,23 %. Lo que cambia es cuánta incertidumbre le atribuye cada método.</p>
+    </div>
+    <div class="chart rv" style="--i:1">
+      <svg viewBox="0 0 900 250" role="img" aria-label="Tres intervalos con centro en 97,23 %: muestreo simple de 97,17 a 97,30, Kish de 97,11 a 97,36 y DANE de 96,99 a 97,47.">
+        <g stroke="var(--line)"><line x1="296.4" y1="30" x2="296.4" y2="205"/><line x1="397.1" y1="30" x2="397.1" y2="205"/><line x1="497.9" y1="30" x2="497.9" y2="205"/><line x1="598.6" y1="30" x2="598.6" y2="205"/><line x1="699.3" y1="30" x2="699.3" y2="205"/><line x1="800" y1="30" x2="800" y2="205"/></g>
+        <line x1="530.1" y1="24" x2="530.1" y2="205" stroke="var(--muted)" stroke-dasharray="5 5"/>
+        <text x="530.1" y="16" text-anchor="middle" font-size="14" fill="var(--muted)">97,23 %</text>
+        <g font-size="16" fill="var(--text)"><text x="16" y="66">Muestreo simple</text><text x="16" y="121">Kish</text><text x="16" y="176">DANE</text></g>
+        <g stroke-width="12" stroke-linecap="round">
+          <line class="bar-anim" style="--i:0" x1="463.6" y1="60" x2="597.6" y2="60" stroke="var(--focus)" opacity=".55"/>
+          <line class="bar-anim" style="--i:1" x1="403.1" y1="115" x2="657.9" y2="115" stroke="var(--focus)" opacity=".78"/>
+          <line class="bar-anim" style="--i:2" x1="286.3" y1="170" x2="774.8" y2="170" stroke="var(--focus)"/>
+        </g>
+        <g fill="var(--strong)"><circle cx="530.1" cy="60" r="8"/><circle cx="530.1" cy="115" r="8"/><circle cx="530.1" cy="170" r="8"/></g>
+        <g font-size="13" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono, monospace">
+          <text x="463.6" y="88">97,17</text><text x="597.6" y="88">97,30</text>
+          <text x="403.1" y="143">97,11</text><text x="657.9" y="143">97,36</text>
+          <text x="286.3" y="198">96,99</text><text x="774.8" y="198">97,47</text>
+        </g>
+        <g font-size="14" fill="var(--muted)" text-anchor="middle"><text x="296.4" y="232">97,0</text><text x="397.1" y="232">97,1</text><text x="497.9" y="232">97,2</text><text x="598.6" y="232">97,3</text><text x="699.3" y="232">97,4</text><text x="800" y="232">97,5</text></g>
+      </svg>
+      <p class="src">Personas afiliadas a salud, total nacional, intervalos de 95 %. Fuente: DANE, ECV 2025, microdatos y anexos generales (cuadro 20); cálculos propios.</p>
+    </div>
+    <div class="tw rv" style="--i:2">
+      <table>
+        <thead><tr><th>Método</th><th>EE (puntos)</th><th>Intervalo</th><th>Ancho</th><th>deff</th><th>n efectivo</th></tr></thead>
+        <tbody>
+          <tr><td>Muestreo simple</td><td>0,034</td><td>97,17 a 97,30</td><td>0,13</td><td>1,0</td><td>235.350</td></tr>
+          <tr><td>Kish</td><td>0,065</td><td>97,11 a 97,36</td><td>0,25</td><td>3,65</td><td>64.470</td></tr>
+          <tr><td>DANE</td><td>0,124</td><td>96,99 a 97,47</td><td>0,48</td><td>13,4</td><td>≈ 17.600</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="trio">
+      <div class="box alert rv" style="--i:3"><h3>Muestreo simple</h3><p>Útil para entender la lógica del intervalo. Aplicado a la ECV, <span class="k">exagera la precisión</span>: su intervalo es 3,7 veces más angosto que el real.</p></div>
+      <div class="box rv" style="--i:4"><h3>Kish</h3><p>Se calcula con los microdatos y sirve para indicadores propios sin cifra oficial. Corrige una parte del problema, y así hay que declararlo.</p></div>
+      <div class="box ok rv" style="--i:5"><h3>DANE</h3><p>Es la precisión real de la cifra. Cuando el indicador está publicado, es la que se reporta.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 -->
+<section class="view" id="grupos" data-block="Encuestas y cálculos" data-title="Cabecera frente a resto" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Prueba z de dos proporciones con datos reales</span>
+      <h2>Afiliación a salud: cabecera frente a resto</h2>
+    </div>
+    <div class="cols">
+      <div class="prose rv" style="--i:1">
+        <div class="tw">
+          <table>
+            <thead><tr><th>Área</th><th>Afiliación</th><th>Simple</th><th>Kish</th><th>DANE</th></tr></thead>
+            <tbody>
+              <tr><td>Cabecera</td><td>97,10 %</td><td>97,00 a 97,19</td><td>96,93 a 97,26</td><td>96,79 a 97,41</td></tr>
+              <tr><td>Resto</td><td>97,68 %</td><td>97,60 a 97,77</td><td>97,56 a 97,80</td><td>97,47 a 97,89</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="formula"><div>d = p₂ − p₁ = 97,68 − 97,10 = 0,58 puntos</div><div>EE(d) = √( EE₁² + EE₂² ) ; z = d / EE(d)</div><small>Supone que cabecera y resto son muestras independientes, lo cual es razonable porque se seleccionan por separado.</small></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Método</th><th>EE(d)</th><th>IC de la diferencia</th><th>z</th><th>Valor p</th></tr></thead>
+            <tbody>
+              <tr><td>Simple</td><td>0,066</td><td>0,46 a 0,71</td><td>8,9</td><td>&lt; 0,0001</td></tr>
+              <tr><td>Kish</td><td>0,104</td><td>0,38 a 0,79</td><td>5,6</td><td>&lt; 0,0001</td></tr>
+              <tr><td>DANE</td><td>0,190</td><td>0,21 a 0,96</td><td>3,1</td><td>0,002</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="src">Fuente: DANE, ECV 2025, microdatos y anexos generales (cuadro 20); cálculos propios.</p>
+      </div>
+      <div class="prose rv" style="--i:2">
+        <div class="box"><div class="ttl"><svg class="ico"><use href="#i-xl"/></svg><h3>En Excel</h3></div><code class="xl">=SUMAPRODUCTO((Hogares!D2:D87061=1)*Hogares!C2:C87061*(Hogares!P2:P87061-Hogares!Q2:Q87061))/SUMAPRODUCTO((Hogares!D2:D87061=1)*Hogares!C2:C87061*Hogares!F2:F87061)
+=SUMAR.SI(Hogares!D2:D87061;1;Hogares!F2:F87061)
+=RAIZ(EE_cab^2+EE_resto^2)
+=2*(1-DISTR.NORM.ESTAND.N(ABS(z);VERDADERO))
+=2*ASENO(RAIZ(p_resto))-2*ASENO(RAIZ(p_cab))</code><p class="note">La condición (D=1) vale 1 en los hogares de cabecera y 0 en los demás; con un 2 se calcula el resto.</p></div>
+        <div class="box focus"><div class="ttl"><svg class="ico"><use href="#i-eye"/></svg><h3>Significancia</h3></div><p>La brecha es significativa con los tres métodos, pero z cae de 8,9 a 3,1. Con una brecha menor o un indicador menos homogéneo, el cálculo simple declararía significativa una diferencia que con el diseño completo no lo es.</p></div>
+        <div class="box ok"><div class="ttl"><svg class="ico"><use href="#i-ok"/></svg><h3>Tamaño y focalización</h3></div><p>h de Cohen = 0,04: un efecto mínimo. Visto desde la desafiliación, es 2,90 % en cabecera y 2,32 % en el resto, unas 1,19 millones de personas frente a 0,29 millones. Un proyecto de afiliación encuentra la mayor parte de su población en las cabeceras.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 -->
+<section class="view" id="cierre" data-block="Cierre" data-title="Qué hace con esto quien formula, gerencia y evalúa" hidden>
+  <div class="wrap">
+    <div class="vh rv" style="--i:0">
+      <span class="eyebrow">Cierre</span>
+      <h2>Qué hace con esto quien formula, gerencia y evalúa</h2>
+    </div>
+    <div class="cycle">
+      <article class="phase rv" style="--i:1">
+        <div class="ttl"><svg class="ico"><use href="#i-form"/></svg><h3>Al formular</h3></div>
+        <ul>
+          <li>Reporta la línea base con su intervalo o su CVE, la fuente y el método.</li>
+          <li>Usa la precisión oficial cuando el indicador está publicado; si es propio, usa Kish y advierte que el intervalo real es más ancho.</li>
+          <li>Revisa el CVE antes de desagregar por departamento o grupo pequeño.</li>
+          <li>Fija metas que la medición pueda verificar.</li>
+        </ul>
+      </article>
+      <article class="phase rv" style="--i:2">
+        <div class="ttl"><svg class="ico"><use href="#i-ger"/></svg><h3>Al gerenciar</h3></div>
+        <ul>
+          <li>Compara el indicador con la meta mediante una prueba, no a ojo.</li>
+          <li>Dimensiona las encuestas de seguimiento para que su margen sea menor que el cambio esperado.</li>
+          <li>Distingue el ruido de la muestra de un cambio real antes de reaccionar.</li>
+        </ul>
+      </article>
+      <article class="phase rv" style="--i:3">
+        <div class="ttl"><svg class="ico"><use href="#i-eval"/></svg><h3>Al evaluar</h3></div>
+        <ul>
+          <li>Construye un contrafactual: grupo de comparación y, si se puede, medición antes y después.</li>
+          <li>Calcula la potencia antes de levantar datos.</li>
+          <li>Reporta el efecto con su intervalo y su tamaño, no solo el valor p.</li>
+          <li>No confunde una diferencia significativa con un efecto causado por el programa.</li>
+        </ul>
+      </article>
+    </div>
+    <p class="src rv" style="--i:4">Datos: DANE, Encuesta Nacional de Calidad de Vida (ECV) 2025, microdatos (archivo de hogares) y anexos generales, publicados el 20 de abril de 2026. Los ejemplos del programa de permanencia escolar rural son hipotéticos y parten de la línea base real de la ECV 2025. Las fórmulas de Excel usan punto y coma y coma decimal, como en Excel configurado en español.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="pager">
+  <div class="pager-in">
+    <button class="pg" id="prev" type="button"><span><small>Anterior</small><b id="prevT"></b></span></button>
+    <div class="count" id="count"></div>
+    <button class="pg next" id="next" type="button"><span><small>Siguiente</small><b id="nextT"></b></span></button>
+  </div>
+</footer>
+
+<script>
+(function(){
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (x,d=1) => x.toLocaleString('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d});
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- Normal ---------- */
+function erf(x){const s=Math.sign(x);x=Math.abs(x);const t=1/(1+0.3275911*x);const y=1-(((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t)*Math.exp(-x*x);return s*y;}
+const Phi = z => 0.5*(1+erf(z/Math.SQRT2));
+
+/* ---------- Navegación por vistas ---------- */
+const views=[...document.querySelectorAll('.view')];
+const blocksEl=document.getElementById('blocks');
+const blockNames=[...new Set(views.map(v=>v.dataset.block))];
+blockNames.forEach(b=>{const btn=document.createElement('button');btn.className='blk';btn.type='button';btn.textContent=b;btn.addEventListener('click',()=>go(views.findIndex(v=>v.dataset.block===b)));blocksEl.appendChild(btn);});
+let cur=0;
+const hooks={};
+function go(i,dir){
+  if(i<0||i>=views.length)return;
+  const back = dir===undefined ? i<cur : dir<0;
+  views[cur].hidden=true;views[cur].classList.remove('in','back');
+  cur=i;const v=views[cur];v.hidden=false;v.scrollTop=0;
+  void v.offsetWidth;v.classList.add('in');if(back)v.classList.add('back');
+  document.getElementById('progress').style.width=((cur+1)/views.length*100)+'%';
+  [...blocksEl.children].forEach(b=>b.classList.toggle('on',b.textContent===v.dataset.block));
+  const p=document.getElementById('prev'),n=document.getElementById('next');
+  p.disabled=cur===0;n.disabled=cur===views.length-1;
+  document.getElementById('prevT').textContent=cur>0?views[cur-1].dataset.title:'';
+  document.getElementById('nextT').textContent=cur<views.length-1?views[cur+1].dataset.title:'';
+  document.getElementById('count').innerHTML='<b>'+(cur+1)+'</b> / '+views.length;
+  try{history.replaceState(null,'','#'+v.id);}catch(e){}
+  if(hooks[v.id])hooks[v.id]();
+}
+document.getElementById('prev').addEventListener('click',()=>go(cur-1,-1));
+document.getElementById('next').addEventListener('click',()=>go(cur+1,1));
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea'))return;
+  if(e.key==='ArrowRight'||e.key==='PageDown'){go(cur+1,1);e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){go(cur-1,-1);e.preventDefault();}
+});
+
+/* ---------- Pestañas ---------- */
+document.querySelectorAll('[data-tabs]').forEach(g=>{
+  const tabs=[...g.querySelectorAll('.tab')];
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>{const on=x===t;x.setAttribute('aria-selected',on);document.getElementById(x.dataset.p).hidden=!on;});
+  }));
+});
+
+/* ---------- Pasos ---------- */
+document.querySelectorAll('[data-stepper]').forEach(st=>{
+  const steps=[...st.querySelectorAll('.step')];const dots=st.querySelector('.sdots');let k=0;
+  steps.forEach((s,i)=>{const d=document.createElement('button');d.className='sdot';d.type='button';d.textContent=i+1;d.setAttribute('aria-label','Paso '+(i+1));d.addEventListener('click',()=>show(i));dots.appendChild(d);});
+  const nx=document.createElement('button');nx.className='btn solid';nx.type='button';nx.textContent='Siguiente paso';nx.style.marginLeft='8px';dots.appendChild(nx);
+  nx.addEventListener('click',()=>show(Math.min(k+1,steps.length-1)));
+  function show(i){k=i;steps.forEach((s,j)=>s.hidden=j!==i);[...dots.querySelectorAll('.sdot')].forEach((d,j)=>{d.classList.toggle('on',j===i);d.classList.toggle('done',j<i);});nx.disabled=i===steps.length-1;nx.style.opacity=i===steps.length-1?.4:1;}
+  show(0);
+});
+
+/* ---------- Canvas helper ---------- */
+function fit(cv){const r=cv.getBoundingClientRect();const dpr=Math.min(devicePixelRatio||1,2);cv.width=Math.max(1,r.width*dpr);cv.height=Math.max(1,r.height*dpr);const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return {c,w:r.width,h:r.height};}
+
+/* ---------- Héroe ---------- */
+(function(){
+  const cv=document.getElementById('heroCanvas');const P=0.3,COLS=30,ROWS=10,N=COLS*ROWS;
+  const pop=[...Array(N)].map(()=>Math.random()<P);
+  const hist=new Array(21).fill(0);let sample=new Set(),t=0,running=true;
+  function draw(){
+    const {c,w,h}=fit(cv);c.clearRect(0,0,w,h);
+    const top=h*0.58,gx=w/COLS,gy=top/ROWS;
+    for(let i=0;i<N;i++){const x=(i%COLS+.5)*gx,y=(Math.floor(i/COLS)+.5)*gy;const inS=sample.has(i);
+      c.beginPath();c.arc(x,y,inS?Math.min(gx,gy)*.32:Math.min(gx,gy)*.2,0,7);
+      c.fillStyle=pop[i]?css('--alert'):css('--line-2');c.globalAlpha=inS?1:.55;c.fill();
+      if(inS){c.globalAlpha=1;c.strokeStyle=css('--focus');c.lineWidth=2;c.stroke();}}
+    c.globalAlpha=1;
+    const max=Math.max(4,...hist),bw=w/hist.length,base=h-18;
+    c.strokeStyle=css('--line');c.beginPath();c.moveTo(0,base);c.lineTo(w,base);c.stroke();
+    hist.forEach((v,i)=>{const bh=(v/max)*(h-top-40);c.fillStyle=css('--focus');c.fillRect(i*bw+2,base-bh,bw-4,bh);});
+    c.fillStyle=css('--muted');c.font='12px Hanken Grotesk, sans-serif';c.textAlign='center';
+    [0,0.25,0.5].forEach(v=>{const i=Math.round(v/0.025);c.fillText(Math.round(v*100)+' %',(i+.5)*bw,h-3);});
+    const px=(Math.round(P/0.025)+.5)*bw;c.strokeStyle=css('--ok');c.setLineDash([4,4]);c.beginPath();c.moveTo(px,top+8);c.lineTo(px,base);c.stroke();c.setLineDash([]);
+  }
+  function step(){
+    if(!running)return;
+    sample=new Set();while(sample.size<30)sample.add(Math.floor(Math.random()*N));
+    const k=[...sample].filter(i=>pop[i]).length;const est=k/30;hist[Math.min(20,Math.round(est/0.025))]++;
+    document.getElementById('heroTxt').innerHTML='Muestra de 30 puntos: <strong>'+fmt(est*100,1)+' %</strong> cumple la condición; en la población es 30 %. Cada muestra da una cifra distinta y las cifras se acumulan abajo. La inferencia estudia esa variación para saber cuánto se puede confiar en una sola muestra.';
+    draw();
+  }
+  draw();step();
+  setInterval(()=>{if(!views[0].hidden&&!reduce)step();},1300);
+  addEventListener('resize',draw);
+})();
+
+/* ---------- Simulador de muestras ---------- */
+(function(){
+  const NP=2000,P=0.066;const pop=[...Array(NP)].map((_,i)=>i<Math.round(NP*P));
+  for(let i=NP-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pop[i],pop[j]]=[pop[j],pop[i]];}
+  const sizes=[50,200,800,1600];let n=200,sample=new Set(),ests=[];
+  const cvP=document.getElementById('simPop'),cvH=document.getElementById('simHist');
+  function drawPop(){const {c,w,h}=fit(cvP);c.clearRect(0,0,w,h);const cols=80,rows=25,gx=w/cols,gy=h/rows,r=Math.min(gx,gy)*.32;
+    for(let i=0;i<NP;i++){const x=(i%cols+.5)*gx,y=(Math.floor(i/cols)+.5)*gy;const s=sample.has(i);c.beginPath();c.arc(x,y,s?r*1.35:r,0,7);c.fillStyle=pop[i]?css('--alert'):(s?css('--focus'):css('--line-2'));c.globalAlpha=s||pop[i]?1:.6;c.fill();}c.globalAlpha=1;}
+  function drawHist(){const {c,w,h}=fit(cvH);c.clearRect(0,0,w,h);const lo=0,hi=0.16,bins=32,bw=w/bins,base=h-20;const hst=new Array(bins).fill(0);
+    ests.forEach(e=>{const i=Math.min(bins-1,Math.max(0,Math.floor((e-lo)/(hi-lo)*bins)));hst[i]++;});const max=Math.max(3,...hst);
+    c.strokeStyle=css('--line');c.beginPath();c.moveTo(0,base);c.lineTo(w,base);c.stroke();
+    hst.forEach((v,i)=>{const bh=v/max*(base-6);c.fillStyle=css('--focus');c.fillRect(i*bw+1,base-bh,bw-2,bh);});
+    const px=(P-lo)/(hi-lo)*w;c.strokeStyle=css('--ok');c.lineWidth=2;c.setLineDash([5,4]);c.beginPath();c.moveTo(px,0);c.lineTo(px,base);c.stroke();c.setLineDash([]);
+    c.fillStyle=css('--muted');c.font='12px Hanken Grotesk, sans-serif';c.textAlign='center';[0,0.04,0.08,0.12,0.16].forEach(v=>c.fillText(Math.round(v*100)+' %',Math.min(w-14,Math.max(14,(v-lo)/(hi-lo)*w)),h-4));}
+  function one(){sample=new Set();while(sample.size<n)sample.add(Math.floor(Math.random()*NP));const k=[...sample].filter(i=>pop[i]).length;const e=k/n;ests.push(e);return e;}
+  function upd(e){document.getElementById('simEst').innerHTML=fmt(e*100,1)+'<small>%</small>';document.getElementById('simCnt').textContent=ests.length;drawPop();drawHist();}
+  document.getElementById('simGo').addEventListener('click',()=>upd(one()));
+  document.getElementById('simMany').addEventListener('click',()=>{let e;for(let i=0;i<50;i++)e=one();upd(e);});
+  const sl=document.getElementById('simN');sl.addEventListener('input',()=>{n=sizes[+sl.value];document.getElementById('simNv').textContent=n.toLocaleString('es-CO');ests=[];sample=new Set();document.getElementById('simEst').textContent='·';document.getElementById('simCnt').textContent='0';drawPop();drawHist();});
+  hooks.muestra=()=>{requestAnimationFrame(()=>{drawPop();drawHist();});};
+  addEventListener('resize',()=>{if(!document.getElementById('muestra').hidden){drawPop();drawHist();}});
+})();
+
+/* ---------- 100 intervalos ---------- */
+(function(){
+  const svg=document.getElementById('ciSvg'),P=0.0659,N=800,NS='http://www.w3.org/2000/svg';
+  const lo=0.03,hi=0.10,x=v=>40+(v-lo)/(hi-lo)*460;
+  function run(){
+    svg.innerHTML='';let hit=0;
+    const ax=document.createElementNS(NS,'line');ax.setAttribute('x1',40);ax.setAttribute('x2',500);ax.setAttribute('y1',305);ax.setAttribute('y2',305);ax.setAttribute('stroke',css('--line-2'));svg.appendChild(ax);
+    [0.03,0.05,0.07,0.09].forEach(v=>{const t=document.createElementNS(NS,'text');t.setAttribute('x',x(v));t.setAttribute('y',324);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','13');t.setAttribute('fill',css('--muted'));t.textContent=Math.round(v*100)+' %';svg.appendChild(t);});
+    for(let i=0;i<100;i++){
+      let k=0;for(let j=0;j<N;j++)if(Math.random()<P)k++;
+      const p=k/N,se=Math.sqrt(p*(1-p)/N),a=p-1.96*se,b=p+1.96*se,ok=a<=P&&P<=b;if(ok)hit++;
+      const l=document.createElementNS(NS,'line');const y=8+i*2.95;
+      l.setAttribute('x1',x(Math.max(lo,a)));l.setAttribute('x2',x(Math.min(hi,b)));l.setAttribute('y1',y);l.setAttribute('y2',y);
+      l.setAttribute('stroke',ok?css('--focus'):css('--alert'));l.setAttribute('stroke-width',ok?1.6:2.4);l.setAttribute('opacity',ok?.75:1);
+      if(!reduce){l.style.opacity=0;l.style.transition='opacity .3s';setTimeout(()=>{l.style.opacity=ok?.75:1;},i*12);}
+      svg.appendChild(l);
+    }
+    const v=document.createElementNS(NS,'line');v.setAttribute('x1',x(P));v.setAttribute('x2',x(P));v.setAttribute('y1',2);v.setAttribute('y2',305);v.setAttribute('stroke',css('--ok'));v.setAttribute('stroke-width',2);svg.appendChild(v);
+    document.getElementById('ciHit').innerHTML=hit+'<small>de 100</small>';
+  }
+  document.getElementById('ciGo').addEventListener('click',run);run();
+})();
+
+/* ---------- Potencia ---------- */
+(function(){
+  const svg=document.getElementById('powSvg'),NS='http://www.w3.org/2000/svg',P0=0.0659;
+  const lo=0.0,hi=0.11,X=v=>20+(v-lo)/(hi-lo)*480,B=195;
+  function path(mu,sd,from,to,close){const pts=[];const s=Math.max(lo,from),e=Math.min(hi,to);for(let i=0;i<=120;i++){const v=s+(e-s)*i/120;const y=Math.exp(-0.5*((v-mu)/sd)**2);pts.push([X(v),y]);}return pts;}
+  function draw(){
+    const n=+document.getElementById('powN').value,d=+document.getElementById('powD').value/100,P1=P0-d;
+    document.getElementById('powNv').textContent=n.toLocaleString('es-CO');document.getElementById('powDv').textContent=fmt(d*100,1);
+    const s0=Math.sqrt(P0*(1-P0)/n),s1=Math.sqrt(P1*(1-P1)/n),cL=P0-1.96*s0,cH=P0+1.96*s0;
+    const pw=Phi((cL-P1)/s1)+(1-Phi((cH-P1)/s1));
+    const H=165,sc=H;svg.innerHTML='';
+    const mk=(tag,at)=>{const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);svg.appendChild(e);return e;};
+    const area=(pts,fill,op)=>{let d='M'+pts[0][0]+' '+B;pts.forEach(p=>d+=' L'+p[0]+' '+(B-p[1]*sc));d+=' L'+pts[pts.length-1][0]+' '+B+' Z';mk('path',{d,fill,opacity:op});};
+    const line=(pts,stroke)=>{let d='';pts.forEach((p,i)=>d+=(i?' L':'M')+p[0]+' '+(B-p[1]*sc));mk('path',{d,fill:'none',stroke,'stroke-width':2.5});};
+    // escalar alturas relativas
+    const k0=1,k1=s0/s1;
+    const p0=path(P0,s0,lo,hi).map(p=>[p[0],p[1]*k0*0.9]);const p1=path(P1,s1,lo,hi).map(p=>[p[0],p[1]*k1*0.9]);
+    const m=Math.max(...p0.map(p=>p[1]),...p1.map(p=>p[1]));const nz=a=>a.map(p=>[p[0],p[1]/m]);
+    const q0=nz(p0),q1=nz(p1);
+    area(nz(path(P1,s1,lo,cL).map(p=>[p[0],p[1]*k1*0.9])),css('--alert'),.45);
+    area(nz(path(P1,s1,cH,hi).map(p=>[p[0],p[1]*k1*0.9])),css('--alert'),.45);
+    line(q0,css('--muted'));line(q1,css('--focus'));
+    mk('line',{x1:20,x2:500,y1:B,y2:B,stroke:css('--line-2')});
+    [[cL,'límite'],[cH,'']].forEach(([v])=>{if(v>lo&&v<hi)mk('line',{x1:X(v),x2:X(v),y1:20,y2:B,stroke:css('--alert'),'stroke-dasharray':'4 4'});});
+    [0,0.02,0.04,0.06,0.08,0.10].forEach(v=>{const t=mk('text',{x:X(v),y:B+20,'text-anchor':'middle','font-size':13,fill:css('--muted')});t.textContent=Math.round(v*100)+' %';});
+    const t0=mk('text',{x:X(P0),y:14,'text-anchor':'middle','font-size':13,fill:css('--muted')});t0.textContent='Sin efecto: 6,59 %';
+    const t1=mk('text',{x:X(P1),y:30,'text-anchor':'middle','font-size':13,fill:css('--focus')});t1.textContent='Con efecto: '+fmt(P1*100,2)+' %';
+    document.getElementById('powOut').innerHTML=Math.round(pw*100)+'<small>%</small>';
+    document.getElementById('powTxt').textContent= pw<0.8 ? 'Con esta muestra, una reducción de '+fmt(d*100,1)+' puntos pasaría sin detectarse en '+Math.round((1-pw)*100)+' de cada 100 evaluaciones (error tipo II). La convención es buscar al menos 80 %.' : 'Con esta muestra, la prueba detectaría una reducción de '+fmt(d*100,1)+' puntos en '+Math.round(pw*100)+' de cada 100 evaluaciones. Supera la convención de 80 %.';
+  }
+  ['powN','powD'].forEach(id=>document.getElementById(id).addEventListener('input',draw));draw();
+})();
+
+/* ---------- Selector de pruebas ---------- */
+(function(){
+  const T=[
+   {t:'Una proporción frente a un valor de referencia',s:'Sí o no · un grupo',p:'Prueba z de una proporción',fase:'Gerencia y seguimiento',
+    q:'¿La proporción en la población es distinta de una meta, una línea base o un promedio nacional?',
+    dat:'Una variable de sí o no medida en un grupo, y un valor de referencia fijo.',
+    sup:'Muestra aleatoria; n × p₀ y n × (1 − p₀) mayores que 10.',
+    est:'z = (p − p₀) / √( p₀ (1 − p₀) / n )',
+    xl:'=(p-p0)/RAIZ(p0*(1-p0)/n)\n=2*(1-DISTR.NORM.ESTAND.N(ABS(z);VERDADERO))',
+    ef:'Diferencia en puntos y h de Cohen.',
+    ej:'¿La inasistencia escolar en los municipios del programa (5,5 %) se aparta de la meta de 5 %? Vista 9.'},
+   {t:'Una media frente a un valor de referencia',s:'Numérica · un grupo',p:'Prueba t de una muestra',fase:'Formulación',
+    q:'¿El promedio en la población es distinto de un valor de referencia?',
+    dat:'Una variable numérica medida en un grupo.',
+    sup:'Muestra aleatoria; distribución aproximadamente normal, o n de 30 o más.',
+    est:'t = (x̄ − μ₀) / (s / √n), con n − 1 grados de libertad',
+    xl:'=(PROMEDIO(rango)-mu0)/(DESVEST.M(rango)/RAIZ(CONTAR(rango)))\n=DISTR.T.2C(ABS(t);CONTAR(rango)-1)',
+    ef:'d de Cohen = (x̄ − μ₀) / s.',
+    ej:'¿El promedio de años de educación de las personas de 15 años o más de los hogares rurales de un departamento (EDU_PROM_15) es distinto de 9 años?'},
+   {t:'Dos proporciones de grupos distintos',s:'Sí o no · dos grupos',p:'Prueba z de dos proporciones (equivale a chi-cuadrado de 2 × 2)',fase:'Formulación y evaluación',
+    q:'¿La proporción es distinta entre dos grupos independientes?',
+    dat:'Una variable de sí o no y dos grupos con unidades distintas.',
+    sup:'Muestras independientes; al menos 10 casos con y sin la condición en cada grupo.',
+    est:'z = (p₁ − p₂) / √( p̄ (1 − p̄) (1/n₁ + 1/n₂) ), con p̄ la proporción conjunta',
+    xl:'=(p1-p2)/RAIZ(pc*(1-pc)*(1/n1+1/n2))\n=2*(1-DISTR.NORM.ESTAND.N(ABS(z);VERDADERO))',
+    ef:'Diferencia absoluta, razón entre proporciones y h de Cohen.',
+    ej:'Afiliación a salud en cabecera frente a resto (vista 18); inasistencia de participantes frente a no participantes (vista 10).'},
+   {t:'Dos medias de grupos distintos',s:'Numérica · dos grupos',p:'t de Student o t de Welch · U de Mann-Whitney',fase:'Evaluación',
+    q:'¿El promedio es distinto entre dos grupos independientes?',
+    dat:'Una variable numérica y dos grupos con unidades distintas.',
+    sup:'Independencia; normalidad aproximada o muestras grandes. Student supone varianzas iguales; Welch no. Si la variable es muy asimétrica o es un orden, Mann-Whitney compara rangos.',
+    est:'Welch: t = (x̄₁ − x̄₂) / √( s₁²/n₁ + s₂²/n₂ )',
+    xl:'=PRUEBA.T(rango1;rango2;2;3)   → valor p, dos colas, Welch\n=PRUEBA.T(rango1;rango2;2;2)   → varianzas iguales\nHerramientas para análisis: Prueba t para dos muestras suponiendo varianzas desiguales',
+    ef:'d de Cohen = (x̄₁ − x̄₂) / desviación estándar combinada.',
+    ej:'Años promedio de educación de los jóvenes de hogares participantes y no participantes de un programa.'},
+   {t:'Antes y después en las mismas unidades',s:'Pareadas',p:'t pareada · Wilcoxon · McNemar',fase:'Gerencia y evaluación',
+    q:'¿Cambió la variable en las mismas personas u hogares entre dos momentos?',
+    dat:'Dos mediciones de las mismas unidades. Numérica: t pareada o Wilcoxon. Sí o no: McNemar.',
+    sup:'Las parejas están bien emparejadas. t pareada: diferencias aproximadamente normales o n grande. McNemar: al menos unos 10 casos que cambiaron.',
+    est:'t = d̄ / (s_d / √n) · McNemar: χ² = (b − c)² / (b + c), con 1 grado de libertad',
+    xl:'=PRUEBA.T(antes;despues;2;1)   → valor p de la t pareada\n=DISTR.CHICUAD.CD((b-c)^2/(b+c);1)   → valor p de McNemar\nHerramientas para análisis: Prueba t para medias de dos muestras emparejadas',
+    ef:'d de las diferencias = d̄ / s_d; en McNemar, la razón b / c.',
+    ej:'Los mismos 1.000 niños y niñas seguidos un año: 50 volvieron a estudiar y 25 dejaron (vista 10).'},
+   {t:'Tres grupos o más',s:'Numérica · k grupos',p:'ANOVA de un factor · Kruskal-Wallis',fase:'Formulación',
+    q:'¿El promedio es igual en todos los grupos o al menos uno difiere?',
+    dat:'Una variable numérica y tres o más grupos independientes.',
+    sup:'Independencia, normalidad aproximada dentro de cada grupo y varianzas parecidas. Si no se cumplen, Kruskal-Wallis compara rangos. Un resultado significativo dice que algún grupo difiere, no cuál: para eso se hacen comparaciones posteriores.',
+    est:'F = varianza entre grupos / varianza dentro de los grupos',
+    xl:'Herramientas para análisis: Análisis de varianza de un factor\n=DISTR.F.CD(F;k-1;n-k)   → valor p',
+    ef:'η² = suma de cuadrados entre grupos / suma de cuadrados total.',
+    ej:'Años promedio de educación de las personas de 15 años o más en las nueve regiones de la ECV.'},
+   {t:'Dos variables categóricas',s:'Categorías × categorías',p:'Chi-cuadrado de independencia',fase:'Formulación',
+    q:'¿Las dos variables están asociadas o se reparten de manera independiente?',
+    dat:'Una tabla de contingencia de frecuencias observadas.',
+    sup:'Observaciones independientes; frecuencias esperadas de al menos 5 en cada celda.',
+    est:'χ² = Σ (O − E)² / E, con E = total de la fila × total de la columna / total',
+    xl:'=PRUEBA.CHICUAD(observados;esperados)   → valor p',
+    ef:'V de Cramér = √( χ² / (n × (m − 1)) ), con m el menor entre filas y columnas.',
+    ej:'¿El trabajo infantil (sí o no) se reparte igual entre las nueve regiones?'},
+   {t:'Dos variables numéricas',s:'Numérica × numérica',p:'Correlación de Pearson · Spearman',fase:'Formulación',
+    q:'¿Las dos variables se mueven juntas?',
+    dat:'Dos variables numéricas medidas en las mismas unidades.',
+    sup:'Pearson: relación lineal y sin valores extremos que la dominen. Spearman: relación que sube o baja de forma constante, aunque no sea lineal; trabaja con rangos.',
+    est:'r ; prueba: t = r √(n − 2) / √(1 − r²), con n − 2 grados de libertad',
+    xl:'=COEF.DE.CORREL(rango1;rango2)\n=DISTR.T.2C(ABS(t);n-2)\nSpearman: COEF.DE.CORREL sobre JERARQUIA.MEDIA de cada variable',
+    ef:'El mismo r. Una correlación no prueba causalidad: es la puerta de entrada a los modelos explicativos.',
+    ej:'Años de educación promedio del hogar y número de personas por cuarto.'}
+  ];
+  const g=document.getElementById('selgrid'),f=document.getElementById('ficha');
+  T.forEach((x,i)=>{const b=document.createElement('button');b.className='sel';b.type='button';b.setAttribute('role','tab');b.innerHTML='<b>'+x.t+'</b><span>'+x.s+'</span>';b.addEventListener('click',()=>sel(i));g.appendChild(b);});
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function sel(i){[...g.children].forEach((b,j)=>b.setAttribute('aria-selected',j===i));const x=T[i];
+    f.innerHTML='<div class="fichas panel">'+
+      '<div class="ficha full"><h4>Prueba</h4><h3 style="font-size:1.35rem">'+x.p+'</h3><p>'+x.q+'</p><span class="tag f">Uso típico: '+x.fase+'</span></div>'+
+      '<div class="ficha"><h4>Datos</h4><p>'+x.dat+'</p></div>'+
+      '<div class="ficha wide"><h4>Supuestos</h4><p>'+x.sup+'</p></div>'+
+      '<div class="ficha wide"><h4>Estadístico</h4><p class="mono" style="color:var(--strong)">'+x.est+'</p></div>'+
+      '<div class="ficha"><h4>Tamaño del efecto</h4><p>'+x.ef+'</p></div>'+
+      '<div class="ficha wide"><h4>En Excel</h4><code class="xl">'+esc(x.xl)+'</code></div>'+
+      '<div class="ficha"><h4>Ejemplo</h4><p>'+x.ej+'</p></div></div>';}
+  sel(0);
+})();
+
+/* ---------- Cuadrantes ---------- */
+(function(){
+  const Q=[
+   '<h3>Significativo y pequeño</h3><p>La afiliación a salud es 0,58 puntos mayor en el resto que en cabecera. La diferencia es real (valor p de 0,002 con el error del DANE), pero su tamaño es mínimo: h de Cohen de 0,04. No justifica por sí sola focalizar un programa en la zona rural.</p><p class="note">Ocurre con frecuencia en encuestas grandes como la ECV.</p>',
+   '<h3>Significativo y grande</h3><p>La inasistencia escolar es 3,2 % en cabecera y 6,59 % en el resto: el doble. Una brecha así, además de ser real, cambia la decisión de dónde concentrar un programa de permanencia escolar.</p><p class="note">Es el caso que justifica una intervención.</p>',
+   '<h3>No significativo y pequeño</h3><p>Una diferencia de una décima de punto entre dos regiones con intervalos que se cruzan. No hay evidencia de diferencia y, aunque la hubiera, sería irrelevante.</p><p class="note">No es una base para decidir nada.</p>',
+   '<h3>No significativo y grande</h3><p>El programa hipotético de la vista 10: una reducción estimada de 2 puntos, casi un tercio de la línea base, que no se distingue de cero porque la muestra era pequeña. <span class="k">No significa que el programa no funcionó</span>; significa que la evaluación no tenía potencia para saberlo.</p><p class="note">Es el error más costoso en evaluación: cerrar un programa útil por una muestra insuficiente.</p>'];
+  const g=document.getElementById('quad'),t=document.getElementById('quadTxt');
+  [...g.children].forEach((b,i)=>b.addEventListener('click',()=>{[...g.children].forEach((x,j)=>x.setAttribute('aria-selected',j===i));t.innerHTML=Q[i];}));
+  t.innerHTML=Q[0];
+})();
+
+/* ---------- Calculadora de EMD ---------- */
+(function(){
+  const P=0.0659,Z=2.8015852;
+  function upd(){
+    const n=+document.getElementById('mdN').value,d=+document.getElementById('mdD').value,e=+document.getElementById('mdE').value/100;
+    document.getElementById('mdNv').textContent=n.toLocaleString('es-CO');document.getElementById('mdDv').textContent=fmt(d,1);document.getElementById('mdEv').textContent=fmt(e*100,1);
+    const mde=Z*Math.sqrt(d*2*P*(1-P)/n);const p2=Math.max(0.0001,P-e);const need=d*Z*Z*(P*(1-P)+p2*(1-p2))/(e*e);
+    document.getElementById('mdOut').innerHTML=fmt(mde*100,1)+'<small>puntos</small>';
+    document.getElementById('mdNeed').textContent=Math.ceil(need).toLocaleString('es-CO');
+    const t=document.getElementById('mdTxt');
+    if(mde<=e){t.textContent='La evaluación puede detectar un efecto de '+fmt(e*100,1)+' puntos.';t.style.color=css('--ok');}
+    else{t.textContent='La evaluación no alcanza: un efecto de '+fmt(e*100,1)+' puntos quedaría por debajo de lo que la muestra puede distinguir de cero.';t.style.color=css('--alert');}
+  }
+  ['mdN','mdD','mdE'].forEach(id=>document.getElementById(id).addEventListener('input',upd));upd();
+})();
+
+/* ---------- Inicio ---------- */
+let start=0;const h=(location.hash||'').slice(1);const idx=views.findIndex(v=>v.id===h);if(idx>=0)start=idx;
+views.forEach(v=>v.hidden=true);cur=start;views[start].hidden=true;go(start,1);
+})();
+</script>
+
+</body></html>
